@@ -89,6 +89,29 @@ async def get_attachment(
         raise HTTPException(status_code=404, detail="附件不存在")
     return _attachment_response(att)
 
+
+@router.delete("/by-entity")
+async def delete_attachment_by_entity(
+    entity_type: str,
+    entity_id: uuid.UUID,
+    file_type: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["admin", "engineer"]))
+):
+    """按 entity_type + entity_id + file_type 删除附件"""
+    att = db.query(Attachment).filter(
+        Attachment.entity_type == entity_type,
+        Attachment.entity_id == entity_id,
+        Attachment.file_type == file_type
+    ).first()
+    if not att:
+        # 附件不存在也返回成功（幂等）
+        return {"message": "附件不存在或已删除"}
+    db.delete(att)
+    db.commit()
+    return {"message": "附件已删除"}
+
+
 @router.delete("/{attachment_id}")
 async def delete_attachment(
     attachment_id: uuid.UUID,

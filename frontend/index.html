@@ -582,6 +582,10 @@ const API = {
   async getMe() { return this._fetch('GET', '/auth/me'); },
 
   // Parts
+
+  async deleteAttachment(entity_type, entity_id, file_type) {
+    return this._fetch('DELETE', '/attachments/by-entity?entity_type=' + entity_type + '&entity_id=' + entity_id + '&file_type=' + file_type);
+  },
   async getParts() { return this._fetch('GET', '/parts/'); },
   async getPart(id) { return this._fetch('GET', '/parts/' + id); },
   async createPart(data) { return this._fetch('POST', '/parts/', data); },
@@ -1662,41 +1666,67 @@ const Pages = {
   },
 
   // 删除零件附件
+  // 删除零件附件
   _deletePartAttachment: function(btn, field) {
     var partId = window._editPartId;
     var part = Store.getById('parts', partId);
     if (!part) return;
-    var preview = btn.parentElement;
-    var inputIdMap = { sourceFile: 'fp-source', drawing: 'fp-drawing', stp: 'fp-stp', pdf: 'fp-pdf' };
-    UI.confirm('确定要删除此附仦吗？', function() {
-      part[field] = '';
-      part[field + '_data'] = '';
-      Store.update('parts', part.id, part);
-      preview.innerHTML = '<span class="file-name empty">未上传</span>';
-      var input = document.getElementById(inputIdMap[field]);
-      if (input) input.value = '';
-      UI.closeModal();
-    });
-  },
 
+    var doDelete = function() {
+      API.deleteAttachment('part', part.id, field).then(function() {
+        var fresh = Store.getById('parts', partId);
+        if (fresh) {
+          fresh[field] = '';
+          fresh[field + '_data'] = '';
+          Store.update('parts', partId, fresh);
+        }
+        Pages._editPart(partId);
+      }).catch(function(err) {
+        console.error('服务器附件删除失败', err);
+        UI.toast('服务器附件删除失败，仍已清除本地记录', 'warning');
+        var fresh = Store.getById('parts', partId);
+        if (fresh) {
+          fresh[field] = '';
+          fresh[field + '_data'] = '';
+          Store.update('parts', partId, fresh);
+        }
+        Pages._editPart(partId);
+      });
+    };
+
+    UI.confirm('确定要删除此附件吗？此操作不可恢复。', doDelete, { noRestore: true, closeOnConfirm: false });
+  },
   // 删除部件附仦
+  // 删除部件附件
   _deleteCompAttachment: function(btn, field) {
     var compId = window._editCompId;
     var comp = Store.getById('components', compId);
     if (!comp) return;
-    var preview = btn.parentElement;
-    var inputIdMap = { sourceFile: 'fc-source', drawing: 'fc-drawing', stp: 'fc-stp', pdf: 'fc-pdf' };
-    UI.confirm('确定要删除此附件吗？', function() {
-      comp[field] = '';
-      comp[field + '_data'] = '';
-      Store.update('components', comp.id, comp);
-      preview.innerHTML = '<span class="file-name empty">未上传</span>';
-      var input = document.getElementById(inputIdMap[field]);
-      if (input) input.value = '';
-      UI.closeModal();
-    });
-  },
 
+    var doDelete = function() {
+      API.deleteAttachment('component', comp.id, field).then(function() {
+        var fresh = Store.getById('components', compId);
+        if (fresh) {
+          fresh[field] = '';
+          fresh[field + '_data'] = '';
+          Store.update('components', compId, fresh);
+        }
+        Pages._editComp(compId);
+      }).catch(function(err) {
+        console.error('服务器附件删除失败', err);
+        UI.toast('服务器附件删除失败，仍已清除本地记录', 'warning');
+        var fresh = Store.getById('components', compId);
+        if (fresh) {
+          fresh[field] = '';
+          fresh[field + '_data'] = '';
+          Store.update('components', compId, fresh);
+        }
+        Pages._editComp(compId);
+      });
+    };
+
+    UI.confirm('确定要删除此附件吗？此操作不可恢复。', doDelete, { noRestore: true, closeOnConfirm: false });
+  },
   _deletePart: function(id) {
     var part = Store.getById('parts', id);
     if (!part) return;
