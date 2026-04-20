@@ -1,0 +1,461 @@
+const Store = {
+  _prefix: 'bom_',
+
+  // ===== 同步元数据 =====
+  // 本地临时ID → 服务器真实ID 的持久映射（用于处理本地先创建、服务器后分配ID的场景）
+  _getIdMap() {
+    try { return JSON.parse(localStorage.getItem(this._prefix + '_idMap')) || {}; } catch { return {}; }
+  },
+  _setIdMap(m) { localStorage.setItem(this._prefix + '_idMap', JSON.stringify(m)); },
+  // 解析服务器真实ID（优先从映射表查，其次直接返回）
+  resolveId(entity, localId) {
+    if (!localId) return null;
+    const map = this._getIdMap()[entity] || {};
+    return map[localId] || localId;
+  },
+  // 记录本地ID → 服务器ID 的映射
+  registerId(entity, localId, serverId) {
+    if (localId === serverId) return;
+    const all = this._getIdMap();
+    if (!all[entity]) all[entity] = {};
+    all[entity][localId] = serverId;
+    this._setIdMap(all);
+  },
+
+  // ===== 后台同步队列 =====
+  _syncQueue: [],         // 待同步任务队列
+  _syncRunning: false,    // 是否正在处理
+  _syncStatus: 'idle',    // idle | syncing | error | offline
+  _syncErrorCount: 0,     // 连续失败计数
+  _currentTask: null,     // 当前正在执行的任务（用于面板显示）
+  _syncStats: { success: 0, failed: 0, total: 0 }, // 同步统计
+  _taskHistory: [], // 已完成任务历史（用于面板显示）
+
+  // 实体 → API 方法映射
+  _entityMap: {
+    parts:      { create: 'createPart',  update: 'updatePart',  delete: 'deletePart',  plural: 'getParts',     key: 'code' },
+    components: { create: 'createAssembly', update: 'updateAssembly', delete: 'deleteAssembly', plural: 'getAssemblies', key: 'code' },
+    users:      { create: 'createUser',  update: 'updateUser',  delete: 'deleteUser',  plural: 'getUsers',     key: 'username' },
+  },
+
+  // 实体字段到 API 字段的映射（本地字段名 → API 字段名）
+  _fieldMap: {
+    parts:      { status: 'status', remark: 'remark', revisions: 'revisions', createdAt: 'created_at', updatedAt: 'updated_at' },
+    components: { version: 'version', remark: 'remark', revisions: 'revisions', createdAt: 'created_at', updatedAt: 'updated_at', price: 'price' },
+    bom_items:  { childId: 'child_id', childType: 'child_type', partId: 'part_id', componentId: 'component_id', quantity: 'quantity', parentType: 'parent_type', parentId: 'parent_id', createdAt: 'created_at' },
+    users:      { realName: 'real_name', department: 'department', phone: 'phone', createdAt: 'created_at', updatedAt: 'updated_at' },
+    dict_materials: { id: 'id', value: 'value', name: 'name' },
+  },
+
+  // 入队：本地操作完成后自动触发后台同步
+  _enqueue(op, entity, record, oldRecord) {
+    // 不同步 logs（只读）
+    if (entity === 'logs') return;
+    this._syncQueue.push({ op, entity, record, oldRecord, ts: Date.now() });
+    this._needsRefresh = true;  // 标记需要刷新
+    this._processQueue();
+  },
+
+  // 处理队列（非阻塞，串行执行）
+  async _processQueue() {
+    if (this._syncRunning || !API._token) return;
+    this._syncRunning = true;
+    this._syncStatus = 'syncing';
+    this._updateSyncIndicator();
+
+    while (this._syncQueue.length > 0 && API._token) {
+      const task = this._syncQueue.shift();
+      this._currentTask = task; // 设置当前任务
+      try {
+        await this._execSync(task);
+        // 同步成功
+        this._syncErrorCount = 0;
+        this._syncStats.success++;
+        this._syncStats.total++;
+        this._taskHistory.push({
+          task: task,
+          status: 'success',
+          timestamp: Date.now()
+        });
+      } catch (e) {
+        // 网络错误 / 未登录：重新放回队列
+        if (!API._token || e.message.includes('401') || e.message.includes('Failed to fetch') || e.message.includes('NetworkError') || e.message.includes('net::ERR')) {
+          this._syncQueue.unshift(task);  // 退回队列末尾
+          this._syncStatus = 'offline';
+          this._syncErrorCount++;
+          // 网络错误不计入失败统计，因为任务会被重试
+          break;  // 暂停，等网络恢复
+        } else {
+          // 其他错误（业务逻辑错误）忽略，继续下一个
+          console.warn('[Sync] 同步失败:', task.entity, task.record.id || task.record.code, e.message);
+          this._syncStats.failed++;
+          this._syncStats.total++;
+          this._taskHistory.push({
+            task: task,
+            status: 'failed',
+            error: e.message,
+            timestamp: Date.now()
+          });
+        }
+      } finally {
+        this._currentTask = null; // 清除当前任务
+      }
+    }
+
+    this._syncRunning = false;
+    this._syncStatus = this._syncErrorCount > 0 ? 'error' : (this._syncQueue.length > 0 ? 'offline' : 'idle');
+    this._updateSyncIndicator();
+
+    // ===== 同步完成后刷新当前页面（仅当有待刷新标记时）=====
+    if (this._syncStatus === 'idle' && this._needsRefresh && typeof Router !== 'undefined' && Router.render) {
+      this._needsRefresh = false;
+      Router.render();
+    }
+  },
+
+  // 执行单个同步任务
+  async _execSync(task) {
+    const { op, entity, record, oldRecord } = task;
+    const map = this._entityMap[entity];
+    if (!map) return;
+
+    // 本地字段名 → API 字段名
+    const toApi = (rec) => {
+      const fmap = this._fieldMap[entity] || {};
+      const out = {};
+      for (const k in rec) {
+        out[fmap[k] || k] = rec[k];
+      }
+      return out;
+    };
+
+    // API 字段名 → 本地字段名（反向映射）
+    const fromApi = (rec) => {
+      const fmap = this._fieldMap[entity] || {};
+      // 构建反向映射表
+      const reverseMap = {};
+      for (const k in fmap) {
+        reverseMap[fmap[k]] = k;
+      }
+      const out = {};
+      for (const k in rec) {
+        out[reverseMap[k] || k] = rec[k];
+      }
+      return out;
+    };
+
+    if (op === 'add') {
+      const apiData = toApi(record);
+      // 移除 id 字段，让后端生成
+      delete apiData.id;
+
+      // ===== 冲突检测：检查服务器是否已有相同 code+version =====
+      if (entity === 'components' && record.code && record.version) {
+        // 获取服务器上所有部件，检查 code+version 冲突
+        const serverComps = await API.getAssemblies().catch(() => []);
+        const conflict = serverComps.find(c => c.code === record.code && c.version === record.version);
+        if (conflict) {
+          throw new Error('CREATE_CONFLICT: 服务器已存在相同件号和版本的部件，请从服务器检出数据后再操作');
+        }
+      } else if (entity === 'parts' && record.code) {
+        // 获取服务器上所有零件，检查 code+version 冲突（零件用 code+version 作为组合唯一键）
+        const serverParts = await API.getParts().catch(() => []);
+        const conflict = serverParts.find(p => p.code === record.code && p.version === record.version);
+        if (conflict) {
+          throw new Error('CREATE_CONFLICT: 服务器已存在相同件号和版本的零件，请从服务器检出数据后再操作');
+        }
+      }
+
+      if (entity === 'components') {
+        const { parts, ...rest } = apiData;
+        console.log('[Sync.add.components] parts=' + JSON.stringify(parts) + ', record.id=' + record.id + ', rest.id=' + rest.id);
+        const created = await API[map.create](rest);
+        console.log('[Sync.add.components] created.id=' + (created ? created.id : 'null') + ', parts.len=' + (parts ? parts.length : 0));
+        if (created && created.id) {
+          this.registerId(entity, record.id, created.id);
+          record.id = created.id;
+        }
+        if (parts && parts.length > 0) {
+          for (const item of parts) {
+            const isComponent = item.childType === 'component';
+            const localChildId = isComponent ? item.componentId : item.partId;
+            const childId = this.resolveId(isComponent ? 'components' : 'parts', localChildId) || localChildId || '';
+            const childType = isComponent ? 'assembly' : 'part';
+            console.log('[Sync.add.components] calling addAssemblyPart record.id=' + record.id + ' childId=' + childId + ' childType=' + childType);
+            await API.addAssemblyPart(record.id, { child_type: childType, child_id: childId, quantity: item.quantity || 1 }).catch(function(e) { console.warn('[Sync.add.components] addAssemblyPart failed:', e); });
+          }
+        }
+      } else {
+        const created = await API[map.create](apiData);
+        if (created && created.id) {
+          this.registerId(entity, record.id, created.id);
+        }
+      }
+    } else if (op === 'update') {
+      const apiData = toApi(record);
+      const resolvedId = this.resolveId(entity, record.id);
+
+      // ===== 冲突检测：检查服务器数据是否比本地更新 =====
+      let serverItem = null;
+      if (entity === 'components') {
+        serverItem = await API.getAssembly(resolvedId).catch(() => null);
+      } else if (entity === 'parts') {
+        serverItem = await API.getPart(resolvedId).catch(() => null);
+      }
+      if (serverItem && serverItem.updated_at) {
+        const serverTime = new Date(serverItem.updated_at).getTime();
+        const localTime = record.updatedAt || 0;
+        if (serverTime > localTime) {
+          throw new Error('UPDATE_CONFLICT: 服务器数据已更新，请从服务器检出数据后再操作');
+        }
+      }
+
+      if (entity === 'components') {
+        const { parts, ...rest } = apiData;
+        console.log('[Sync.update.components] parts=' + JSON.stringify(parts) + ', resolvedId=' + resolvedId);
+        await API[map.update](resolvedId, rest);
+
+        // ===== 同步子项（增删改）=====
+        console.log('[Sync.update.components] parts=' + JSON.stringify(parts));
+        if (parts && parts.length > 0) {
+          console.log('[Sync.update.components] syncing ' + parts.length + ' sub-items');
+          const serverParts = await API.getAssemblyParts(resolvedId).catch(() => []);
+          const serverChildIds = new Set(serverParts.map(sp => sp.child_id));
+          const localChildIds = new Set();
+
+          // 1. 上传新增的子项
+          for (const item of parts) {
+            const isComponent = item.childType === 'component';
+            const localChildId = isComponent ? item.componentId : item.partId;
+            const childId = this.resolveId(isComponent ? 'components' : 'parts', localChildId) || localChildId || '';
+            // 跳过无效的子项（ID 为空或无效）
+            if (!childId || childId.length < 10) {
+              console.warn('[Sync.update.components] 跳过无效子项:', item);
+              continue;
+            }
+            const childType = isComponent ? 'assembly' : 'part';
+            localChildIds.add(childId);
+            if (!serverChildIds.has(childId)) {
+              console.log('[Sync.update.components] addAssemblyPart childId=' + childId + ' childType=' + childType);
+              await API.addAssemblyPart(resolvedId, { child_type: childType, child_id: childId, quantity: item.quantity || 1 }).catch(function(e) { console.warn('[Sync.update] addAssemblyPart failed:', e.message); });
+            } else {
+              console.log('[Sync.update.components] childId=' + childId + ' already exists, skip');
+            }
+          }
+
+          // 2. 删除服务器有但本地没有的子项
+          for (const sp of serverParts) {
+            if (!localChildIds.has(sp.child_id)) {
+              console.log('[Sync.update.components] remove childId=' + sp.child_id);
+              await API.removeAssemblyPart(resolvedId, sp.child_id).catch(function(e) { console.warn('[Sync.update] removeAssemblyPart failed:', e.message); });
+            }
+          }
+        } else {
+          console.log('[Sync.update.components] no sub-items to sync (parts empty/undefined)');
+        }
+      } else {
+        await API[map.update](resolvedId, apiData);
+      }
+
+      // ===== 更新成功后，从服务器获取最新数据同步到本地 =====
+      if (entity === 'parts') {
+        const serverPart = await API.getPart(resolvedId).catch(() => null);
+        if (serverPart) {
+          const fmap = Store._fieldMap['parts'] || {};
+          const reverseMap = {};
+          for (const k in fmap) { reverseMap[fmap[k]] = k; }
+          const converted = {};
+          for (const k in serverPart) { converted[reverseMap[k] || k] = serverPart[k]; }
+          const localParts = Store.getAll('parts');
+          const idx = localParts.findIndex(p => p.id === record.id);
+          if (idx >= 0) {
+            Object.assign(localParts[idx], converted);
+            Store.saveAll('parts', localParts);
+            console.log('[Sync.update.parts] 本地数据已从服务器同步更新');
+          }
+        }
+      } else if (entity === 'components') {
+        // 获取最新的部件数据（包含子项详情）
+        const serverComp = await API.getAssembly(resolvedId).catch(() => null);
+        if (serverComp) {
+          const fmap = Store._fieldMap['components'] || {};
+          const reverseMap = {};
+          for (const k in fmap) { reverseMap[fmap[k]] = k; }
+          const converted = {};
+          for (const k in serverComp) { converted[reverseMap[k] || k] = serverComp[k]; }
+          // 转换服务器返回的 parts 数组为本地格式
+          if (serverComp.parts && Array.isArray(serverComp.parts)) {
+            converted.parts = this._convertServerPartsToLocal(serverComp.parts);
+          }
+          const localComps = Store.getAll('components');
+          const idx = localComps.findIndex(c => c.id === record.id);
+          if (idx >= 0) {
+            Object.assign(localComps[idx], converted);
+            Store.saveAll('components', localComps);
+            console.log('[Sync.update.components] 本地数据已从服务器同步更新，包含转换后的子项');
+          }
+        }
+      }
+    } else if (op === 'delete') {
+      const resolvedId = this.resolveId(entity, record.id);
+      await API[map.delete](resolvedId);
+    }
+  },
+
+  // 更新本地记录的 ID（创建成功后，用后端返回的 ID 替换前端临时 ID）
+  _updateLocalId(entity, oldId, newId) {
+    const d = this.getAll(entity);
+    const idx = d.findIndex(r => r.id === oldId);
+    if (idx >= 0) {
+      d[idx].id = newId;
+      this.saveAll(entity, d);
+      console.log('[Sync] ID 更新:', entity, oldId, '->', newId);
+    }
+    // 如果是零件，更新所有引用它的部件子项
+    if (entity === 'parts') {
+      const allComps = this.getAll('components');
+      let updated = false;
+      allComps.forEach(c => {
+        if (c.parts && c.parts.length > 0) {
+          c.parts.forEach(p => {
+            if (p.childType === 'part' && p.partId === oldId) {
+              p.partId = newId;
+              updated = true;
+            }
+          });
+        }
+      });
+      if (updated) this.saveAll('components', allComps);
+    }
+    // 如果是部件，更新其他部件中引用此部件的子项
+    if (entity === 'components') {
+      const allComps = this.getAll('components');
+      let updated = false;
+      allComps.forEach(c => {
+        if (c.parts && c.parts.length > 0) {
+          c.parts.forEach(p => {
+            if (p.childType === 'component' && p.componentId === oldId) {
+              p.componentId = newId;
+              updated = true;
+            }
+          });
+        }
+      });
+      if (updated) this.saveAll('components', allComps);
+    }
+  },
+
+  // 将服务器返回的 parts 数组转换为本地格式
+  _convertServerPartsToLocal(serverParts) {
+    if (!serverParts || !Array.isArray(serverParts)) return [];
+    return serverParts.map(item => {
+      // 服务器格式：childType: 'assembly' | 'part', childId, componentId, partId, child_detail, ...
+      // 本地格式：childType: 'component' | 'part', componentId, partId, quantity
+      const childType = item.childType === 'assembly' ? 'component' : (item.childType === 'part' ? 'part' : item.childType);
+      const quantity = item.quantity || 1;
+      if (childType === 'component') {
+        return {
+          childType: 'component',
+          componentId: item.componentId || item.child_detail?.id || '',
+          quantity: quantity
+        };
+      } else {
+        return {
+          childType: 'part',
+          partId: item.partId || item.child_detail?.id || '',
+          quantity: quantity
+        };
+      }
+    });
+  },
+
+  // 同步状态指示器：页面右下角小圆点
+  _updateSyncIndicator() {
+    let el = document.getElementById('sync-indicator');
+    if (!el) return;
+    const labels = { idle: '', syncing: '🔄 检出中…', error: '⚠️ 检出失败', offline: '📴 离线' };
+    el.textContent = labels[this._syncStatus] || '';
+    el.title = '队列剩余: ' + this._syncQueue.length + ' 项';
+  },
+
+  // ===== 初始化 =====
+  init() {
+    // 页面加载时尝试消费队列
+    if (API._token) { try { this._processQueue(); } catch(e) { console.warn('[Sync]', e); } }
+  },
+
+  // ===== 基础 CRUD（同步，返回数据） =====
+  _key(e) { return this._prefix + e; },
+  getAll(e) { try { return JSON.parse(localStorage.getItem(this._key(e))) || []; } catch { return []; } },
+  saveAll(e, d) { localStorage.setItem(this._key(e), JSON.stringify(d)); },
+  getById(e, id) { return this.getAll(e).find(r => r.id === id); },
+  add(e, rec, opts) {
+    opts = opts || {};
+    const d = this.getAll(e);
+    rec.id = rec.id || this._genId(e);
+    rec.createdAt = rec.createdAt || Date.now();
+    rec.updatedAt = Date.now();
+    d.push(rec);
+    this.saveAll(e, d);
+    // 后台同步（skipSync 为 true 时跳过）
+    if (!opts.skipSync) {
+      this._enqueue('add', e, rec, null);
+    }
+    return rec;
+  },
+  update(e, id, upd, opts) {
+    opts = opts || {};
+    const d = this.getAll(e);
+    const i = d.findIndex(r => r.id === id);
+    if (i < 0) return null;
+    const oldRecord = Object.assign({}, d[i]);
+    Object.assign(d[i], upd, { updatedAt: Date.now() });
+    this.saveAll(e, d);
+    // 后台同步（skipSync 为 true 时跳过）
+    if (!opts.skipSync) {
+      this._enqueue('update', e, d[i], oldRecord);
+    }
+    return d[i];
+  },
+  remove(e, id, opts) {
+    opts = opts || {};
+    const d = this.getAll(e);
+    const rec = d.find(r => r.id === id);
+    this.saveAll(e, d.filter(r => r.id !== id));
+    // 后台同步（skipSync 为 true 时跳过）
+    if (rec && !opts.skipSync) this._enqueue('delete', e, rec, null);
+  },
+  _genId(e) {
+    // 使用 UUID v4 格式，与后端 PostgreSQL UUID 类型兼容
+    return _uuid();
+  },
+  addLog(action, detail) {
+    const u = Auth.getUser();
+    this.add('logs', { action, detail: detail || '', user: u ? u.username : 'system', time: Date.now() });
+  },
+
+  // ===== 手动全量同步（管理员可触发） =====
+  async syncAll() {
+    if (!API._token) return { error: '未登录后端' };
+    const parts = this.getAll('parts');
+    const assemblies = this.getAll('components');
+    return await API.syncAll(parts, assemblies);
+  },
+
+  // ===== 首次登录后主动推送本地数据 =====
+  async onLogin() {
+    if (!API._token) return;
+    this._syncStatus = 'syncing';
+    this._updateSyncIndicator();
+    try {
+      const results = await this.syncAll();
+      this._syncStatus = 'idle';
+      this._updateSyncIndicator();
+      return results;
+    } catch (e) {
+      this._syncStatus = 'error';
+      this._updateSyncIndicator();
+      return { error: e.message };
+    }
+  }
+};
