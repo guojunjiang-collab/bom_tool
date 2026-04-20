@@ -2559,16 +2559,11 @@ const Pages = {
         '</div>' +
         
         '<div class="bom-view" id="view-search">' +
-          '<div class="view-header">' +
-            '<h3>BOM反查</h3>' +
-            '<p class="view-description">通过零件/部件编码或名称查找其在BOM中的引用关系</p>' +
+          '<div class="card" style="margin-bottom:20px">' +
+            '<input type="text" id="bom-search-input" placeholder="输入件号或名称搜索零件/部件..." autocomplete="off" class="form-input" style="width:100%;padding:9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;box-sizing:border-box" />' +
+            '<div id="bom-search-results" style="margin-top:8px;display:none;max-height:320px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px"></div>' +
           '</div>' +
-          '<div class="search-section">' +
-            '<input type="text" id="bom-search-input" placeholder="输入零件/部件编码或名称" class="form-input" style="width:300px">' +
-            '<button class="btn-primary" id="bom-search-btn">搜索</button>' +
-          '</div>' +
-          '<div class="search-results" id="bom-search-results"></div>' +
-          '<div class="search-tree" id="bom-search-tree"></div>' +
+          '<div id="bom-search-tree"></div>' +
         '</div>' +
       '</div>';
     
@@ -2829,14 +2824,20 @@ const Pages = {
     
     // 初始化BOM反查功能（完整恢复）
     var searchInput = c.querySelector('#bom-search-input');
-    var searchBtn = c.querySelector('#bom-search-btn');
     var searchResults = c.querySelector('#bom-search-results');
     var searchTree = c.querySelector('#bom-search-tree');
     
-    // 搜索按钮事件
-    searchBtn.addEventListener('click', function() {
+    // 防抖计时器
+    var searchTimer = null;
+    
+    // 搜索函数
+    function performSearch() {
       var keyword = searchInput.value.trim().toLowerCase();
-      if (!keyword) return;
+      if (!keyword) {
+        searchResults.style.display = 'none';
+        searchTree.innerHTML = '';
+        return;
+      }
       
       // 搜索零件和部件
       var parts = Store.getAll('parts');
@@ -2899,7 +2900,16 @@ const Pages = {
           doReverse(rid, rtype);
         };
       });
+    }
+    
+    // 输入事件监听（防抖300ms）
+    searchInput.addEventListener('input', function() {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(performSearch, 300);
     });
+    
+    // 初始隐藏结果列表
+    searchResults.style.display = 'none';
 
     // BOM反查核心函数
     function doReverse(rid, rtype) {
