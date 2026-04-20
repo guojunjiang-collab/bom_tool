@@ -2612,10 +2612,8 @@ const Pages = {
       compareBtn.textContent = '对比中...';
       
       try {
-        // 获取认证token
-        var token = Auth.getToken ? Auth.getToken() : null;
-        var headers = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = 'Bearer ' + token;
+        // 获取认证headers（包含token）
+        var headers = API._headers();
         
         // 构建请求
         var requestBody = {
