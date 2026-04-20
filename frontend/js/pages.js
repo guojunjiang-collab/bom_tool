@@ -2612,8 +2612,7 @@ const Pages = {
       compareBtn.textContent = '对比中...';
       
       try {
-        // 获取认证headers（包含token）
-        var headers = API._headers();
+        // 认证由 API._fetch 自动处理
         
         // 构建请求
         var requestBody = {
@@ -2625,19 +2624,8 @@ const Pages = {
           }
         };
         
-        // 调用后端对比API
-        var response = await fetch('/api/bom/compare', {
-          method: 'POST',
-          headers: headers,
-          body: JSON.stringify(requestBody)
-        });
-        
-        if (!response.ok) {
-          var errorText = await response.text();
-          throw new Error('API请求失败: ' + response.status + ' ' + errorText);
-        }
-        
-        var compareData = await response.json();
+        // 调用后端对比API（使用API._fetch自动处理认证和错误）
+        var compareData = await API._fetch('POST', '/bom/compare', requestBody);
         
         // 渲染对比结果
         renderCompareResults(compareData.comparison, leftId, rightId);
