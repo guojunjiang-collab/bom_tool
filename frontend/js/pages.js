@@ -2642,10 +2642,10 @@ const Pages = {
         var compareData = await response.json();
         
         // 渲染对比结果
-        renderCompareResults(compareData, leftId, rightId);
+        renderCompareResults(compareData.comparison, leftId, rightId);
         
         // 更新摘要
-        updateCompareSummary(compareData);
+        updateCompareSummary(compareData.summary);
         
         UI.toast('对比完成', 'success');
       } catch (error) {
@@ -2709,12 +2709,13 @@ const Pages = {
         
         // 左侧行
         if (leftItem) {
+          var leftDetail = leftItem.detail || {};
           leftRows += '<div class="' + rowClass + ' ' + changeColor + '" style="' + indentStyle + '">' +
-            '<div class="compare-cell"><strong>' + (leftItem.code || '') + '</strong></div>' +
-            '<div class="compare-cell">' + (leftItem.name || '') + '</div>' +
+            '<div class="compare-cell"><strong>' + (leftDetail.code || '') + '</strong></div>' +
+            '<div class="compare-cell">' + (leftDetail.name || '') + '</div>' +
             '<div class="compare-cell">' + (leftItem.quantity || '') + '</div>' +
             '<div class="compare-cell">' + (leftItem.child_type === 'part' ? '零件' : '部件') + '</div>' +
-            '<div class="compare-cell">' + (leftItem.version || '') + '</div>' +
+            '<div class="compare-cell">' + (leftDetail.version || '') + '</div>' +
             '<div class="compare-cell">' + (changeType === 'added' ? '新增' : changeType === 'removed' ? '删除' : changeType === 'modified' ? '修改' : '未变') + '</div>' +
             '</div>';
         } else {
@@ -2731,12 +2732,13 @@ const Pages = {
         
         // 右侧行
         if (rightItem) {
+          var rightDetail = rightItem.detail || {};
           rightRows += '<div class="' + rowClass + ' ' + changeColor + '" style="' + indentStyle + '">' +
-            '<div class="compare-cell"><strong>' + (rightItem.code || '') + '</strong></div>' +
-            '<div class="compare-cell">' + (rightItem.name || '') + '</div>' +
+            '<div class="compare-cell"><strong>' + (rightDetail.code || '') + '</strong></div>' +
+            '<div class="compare-cell">' + (rightDetail.name || '') + '</div>' +
             '<div class="compare-cell">' + (rightItem.quantity || '') + '</div>' +
             '<div class="compare-cell">' + (rightItem.child_type === 'part' ? '零件' : '部件') + '</div>' +
-            '<div class="compare-cell">' + (rightItem.version || '') + '</div>' +
+            '<div class="compare-cell">' + (rightDetail.version || '') + '</div>' +
             '<div class="compare-cell">' + (changeType === 'added' ? '新增' : changeType === 'removed' ? '删除' : changeType === 'modified' ? '修改' : '未变') + '</div>' +
             '</div>';
         } else {
@@ -2762,23 +2764,38 @@ const Pages = {
       var summaryEl = c.querySelector('#compare-summary');
       if (!summaryEl) return;
       
-      if (!compareData || compareData.length === 0) {
-        summaryEl.innerHTML = '无对比数据';
-        return;
+      // 判断是摘要对象还是对比数组
+      var summaryText = '';
+      if (compareData && typeof compareData === 'object' && !Array.isArray(compareData)) {
+        // 摘要对象
+        var total = compareData.total || 0;
+        var added = compareData.added || 0;
+        var removed = compareData.deleted || compareData.removed || 0;
+        var modified = compareData.modified || 0;
+        var unchanged = compareData.unchanged || 0;
+        summaryText = '共 ' + total + ' 项，新增 ' + added + ' 项，删除 ' + removed + ' 项，修改 ' + modified + ' 项，未变 ' + unchanged + ' 项';
+      } else if (Array.isArray(compareData)) {
+        // 对比数组（旧格式）
+        if (compareData.length === 0) {
+          summaryText = '无对比数据';
+        } else {
+          var added = 0, removed = 0, modified = 0, unchanged = 0;
+          compareData.forEach(function(item) {
+            switch (item.change_type) {
+              case 'added': added++; break;
+              case 'removed': removed++; break;
+              case 'modified': modified++; break;
+              case 'unchanged': unchanged++; break;
+            }
+          });
+          var total = compareData.length;
+          summaryText = '共 ' + total + ' 项，新增 ' + added + ' 项，删除 ' + removed + ' 项，修改 ' + modified + ' 项，未变 ' + unchanged + ' 项';
+        }
+      } else {
+        summaryText = '无对比数据';
       }
       
-      var added = 0, removed = 0, modified = 0, unchanged = 0;
-      compareData.forEach(function(item) {
-        switch (item.change_type) {
-          case 'added': added++; break;
-          case 'removed': removed++; break;
-          case 'modified': modified++; break;
-          case 'unchanged': unchanged++; break;
-        }
-      });
-      
-      var total = compareData.length;
-      summaryEl.innerHTML = '共 ' + total + ' 项，新增 ' + added + ' 项，删除 ' + removed + ' 项，修改 ' + modified + ' 项，未变 ' + unchanged + ' 项';
+      summaryEl.innerHTML = summaryText;
     }
     
     // 全展开/全折叠按钮事件
