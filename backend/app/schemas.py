@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 import uuid
 
 class BaseSchema(BaseModel):
@@ -177,3 +177,32 @@ class DictionaryResponse(DictionaryBase):
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+
+
+class BOMCompareOptions(BaseSchema):
+    """BOM对比选项"""
+    ignore_quantity: bool = False
+    max_depth: int = 10
+    include_internal_change: bool = True
+
+class BOMCompareRequest(BaseSchema):
+    """BOM对比请求体"""
+    left_assembly_id: uuid.UUID
+    right_assembly_id: uuid.UUID
+    options: BOMCompareOptions = BOMCompareOptions()
+
+class BOMCompareNode(BaseSchema):
+    """对比节点"""
+    key: str
+    level: int
+    sort: str
+    change_type: str  # none, add, delete, modify, internal
+    left: Optional[Dict[str, Any]] = None
+    right: Optional[Dict[str, Any]] = None
+
+class BOMCompareResponse(BaseSchema):
+    """BOM对比响应"""
+    left_assembly: Dict[str, Any]
+    right_assembly: Dict[str, Any]
+    comparison: List[BOMCompareNode]
+    summary: Dict[str, int]

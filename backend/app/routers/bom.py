@@ -5,6 +5,7 @@ import uuid
 from ..database import get_db
 from ..models import User
 from .. import crud, schemas
+from ..bom import compare
 from .auth import require_role
 
 router = APIRouter(prefix="/bom", tags=["BOM管理"])
@@ -65,3 +66,23 @@ async def delete_bom_item(item_id: uuid.UUID, request: Request, db: Session = De
     ip = request.client.host if request.client else None
     crud.create_log(db, current_user.id, current_user.username, "删除BOM项", "bom", str(item_id), None, ip)
     return {"message": "BOM项已删除"}
+
+@router.post("/compare")
+async def compare_bom_assemblies(
+    request: schemas.BOMCompareRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["admin", "engineer", "production"]))
+):
+    """对比两个装配体的BOM结构"""
+    try:
+        result = compare.compare_assemblies(
+            db,
+            request.left_assembly_id,
+            request.right_assembly_id,
+            options=request.options.model_dump()
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"对比失败: {str(e)}")
