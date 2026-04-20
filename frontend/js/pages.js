@@ -2520,6 +2520,7 @@ const Pages = {
 
   bom: function(c) {
     // BOM管理：对比与反查两个独立界面
+    var currentCompareData = null; // 存储当前对比结果，用于导出
     c.innerHTML = 
       '<div class="bom-management-container">' +
         '<div class="bom-view-switcher">' +
@@ -2542,6 +2543,7 @@ const Pages = {
               '<button class="btn-outline" id="expand-all">全展开</button>' +
               '<button class="btn-outline" id="collapse-all">全折叠</button>' +
               '<label class="checkbox-label"><input type="checkbox" id="show-changes-only"> 只显示变更</label>' +
+              '<button class="btn-outline" id="export-csv">📥 导出CSV</button>' +
             '</div>' +
             '<div class="version-selector right-selector">' +
               '<label>右侧版本</label>' +
@@ -2645,6 +2647,7 @@ const Pages = {
     
     // 渲染对比结果到左右表格
     function renderCompareResults(compareData, leftAssemblyId, rightAssemblyId) {
+      currentCompareData = compareData; // 存储用于导出
       var leftTable = c.querySelector('#left-table');
       var rightTable = c.querySelector('#right-table');
       
@@ -2823,6 +2826,80 @@ const Pages = {
         }
       });
       UI.toast(showChangesOnly ? '只显示变更项' : '显示所有项', 'info');
+    });
+    
+    // 导出CSV按钮事件
+    c.querySelector('#export-csv').addEventListener('click', function() {
+      if (!currentCompareData) {
+        UI.toast('暂无对比数据，请先执行对比', 'warning');
+        return;
+      }
+      // 生成CSV内容
+      var csvRows = [];
+      // 表头
+      csvRows.push(['层级','变更类型','左侧件号','左侧名称','左侧用量','左侧类型','左侧版本','右侧件号','右侧名称','右侧用量','右侧类型','右侧版本'].join(','));
+      
+      currentCompareData.forEach(function(item) {
+        var left = item.left;
+        var right = item.right;
+        var changeType = item.change_type;
+        var level = item.level || 0;
+        
+        var leftCode = left && left.detail ? left.detail.code || '' : '';
+        var leftName = left && left.detail ? left.detail.name || '' : '';
+        var leftQty = left ? left.quantity || '' : '';
+        var leftType = left ? (left.child_type === 'part' ? '零件' : '部件') : '';
+        var leftVersion = left && left.detail ? left.detail.version || '' : '';
+        
+        var rightCode = right && right.detail ? right.detail.code || '' : '';
+        var rightName = right && right.detail ? right.detail.name || '' : '';
+        var rightQty = right ? right.quantity || '' : '';
+        var rightType = right ? (right.child_type === 'part' ? '零件' : '部件') : '';
+        var rightVersion = right && right.detail ? right.detail.version || '' : '';
+        
+        // 变更类型中文映射
+        var changeTypeMap = {
+          'added': '新增',
+          'removed': '删除', 
+          'modified': '修改',
+          'unchanged': '未变'
+        };
+        var changeTypeText = changeTypeMap[changeType] || changeType;
+        
+        csvRows.push([
+          level,
+          changeTypeText,
+          leftCode,
+          leftName,
+          leftQty,
+          leftType,
+          leftVersion,
+          rightCode,
+          rightName,
+          rightQty,
+          rightType,
+          rightVersion
+        ].map(function(cell) {
+          // CSV转义：引号包裹包含逗号、换行或引号的内容
+          if (typeof cell === 'string' && (cell.includes(',') || cell.includes('\n') || cell.includes('"'))) {
+            return '"' + cell.replace(/"/g, '""') + '"';
+          }
+          return cell;
+        }).join(','));
+      });
+      
+      var csvContent = csvRows.join('\n');
+      var blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'BOM对比_' + new Date().toISOString().slice(0,10) + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      UI.toast('CSV导出成功', 'success');
     });
     
     // 初始化BOM反查功能（完整恢复）
