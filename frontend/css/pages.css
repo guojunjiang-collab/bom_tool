@@ -194,9 +194,28 @@
     max-height: 600px;
 }
 
+.compare-column-header {
+    display: grid;
+    grid-template-columns: 60px 120px 150px 80px 80px 60px 80px;
+    gap: 8px;
+    padding: 8px 16px;
+    border-bottom: 2px solid #ddd;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 600;
+    background-color: #f8f9fa;
+}
+
+.compare-column-cell {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
 .compare-row {
     display: grid;
-    grid-template-columns: 120px 150px 80px 80px 60px 80px;
+    grid-template-columns: 60px 120px 150px 80px 80px 60px 80px;
     gap: 8px;
     padding: 8px 16px;
     border-bottom: 1px solid #f5f5f5;
@@ -229,6 +248,10 @@
 
 .unchanged-row {
     background-color: #fafafa;
+}
+
+.internal-row {
+    background-color: #FFF3E0;
 }
 
 .empty-table {

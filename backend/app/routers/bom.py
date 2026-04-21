@@ -86,3 +86,23 @@ async def compare_bom_assemblies(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"对比失败: {str(e)}")
+
+@router.post("/compare/component")
+async def compare_bom_components(
+    request: schemas.BOMCompareRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["admin", "engineer", "production"]))
+):
+    """对比两个子部件（装配体）的BOM结构"""
+    try:
+        result = compare.compare_assemblies(
+            db,
+            request.left_assembly_id,
+            request.right_assembly_id,
+            options=request.options.model_dump()
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"子部件对比失败: {str(e)}")

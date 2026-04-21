@@ -2681,41 +2681,71 @@ const Pages = {
         var changeType = item.change_type;
         var level = item.level || 0;
         
+        // 映射后端变更类型到前端CSS类名
+        var changeTypeMap = {
+            'add': 'added',
+            'added': 'added',
+            'delete': 'removed',
+            'removed': 'removed',
+            'modify': 'modified',
+            'modified': 'modified',
+            'none': 'unchanged',
+            'unchanged': 'unchanged',
+            'internal': 'internal'
+        };
+        var frontendChangeType = changeTypeMap[changeType] || changeType;
+        
         // 根据变更类型确定行样式
         var rowClass = 'compare-row';
         var changeColor = '';
-        switch (changeType) {
+        switch (frontendChangeType) {
           case 'added': changeColor = 'added-row'; break;
           case 'removed': changeColor = 'removed-row'; break;
           case 'modified': changeColor = 'modified-row'; break;
           case 'unchanged': changeColor = 'unchanged-row'; break;
+          case 'internal': changeColor = 'internal-row'; break;
           default: changeColor = '';
+        }
+        
+        // 变更类型中文文本
+        var changeTypeText = '';
+        switch (frontendChangeType) {
+          case 'added': changeTypeText = '新增'; break;
+          case 'removed': changeTypeText = '删除'; break;
+          case 'modified': changeTypeText = '修改'; break;
+          case 'unchanged': changeTypeText = '未变'; break;
+          case 'internal': changeTypeText = '内部变更'; break;
+          default: changeTypeText = '';
         }
         
         // 缩进样式
         var indent = level * 20;
         var indentStyle = 'margin-left: ' + indent + 'px;';
+        // 层级文本
+        var levelText = 'L' + (level + 1);
         
         // 左侧行
         if (leftItem) {
           var leftDetail = leftItem.detail || {};
           leftRows += '<div class="' + rowClass + ' ' + changeColor + '" style="' + indentStyle + '">' +
+            '<div class="compare-cell">' + levelText + '</div>' +
             '<div class="compare-cell"><strong>' + (leftDetail.code || '') + '</strong></div>' +
             '<div class="compare-cell">' + (leftDetail.name || '') + '</div>' +
             '<div class="compare-cell">' + (leftItem.quantity || '') + '</div>' +
             '<div class="compare-cell">' + (leftItem.child_type === 'part' ? '零件' : '部件') + '</div>' +
             '<div class="compare-cell">' + (leftDetail.version || '') + '</div>' +
-            '<div class="compare-cell">' + (changeType === 'added' ? '新增' : changeType === 'removed' ? '删除' : changeType === 'modified' ? '修改' : '未变') + '</div>' +
+            '<div class="compare-cell">' + changeTypeText + '</div>' +
             '</div>';
         } else {
           // 左侧缺失（仅在右侧存在）
           leftRows += '<div class="' + rowClass + ' ' + changeColor + '" style="' + indentStyle + '">' +
+            '<div class="compare-cell">' + levelText + '</div>' +
             '<div class="compare-cell">—</div>' +
             '<div class="compare-cell">—</div>' +
             '<div class="compare-cell">—</div>' +
             '<div class="compare-cell">—</div>' +
             '<div class="compare-cell">—</div>' +
-            '<div class="compare-cell">' + (changeType === 'added' ? '新增' : changeType === 'removed' ? '删除' : changeType === 'modified' ? '修改' : '未变') + '</div>' +
+            '<div class="compare-cell">' + changeTypeText + '</div>' +
             '</div>';
         }
         
@@ -2723,29 +2753,42 @@ const Pages = {
         if (rightItem) {
           var rightDetail = rightItem.detail || {};
           rightRows += '<div class="' + rowClass + ' ' + changeColor + '" style="' + indentStyle + '">' +
+            '<div class="compare-cell">' + levelText + '</div>' +
             '<div class="compare-cell"><strong>' + (rightDetail.code || '') + '</strong></div>' +
             '<div class="compare-cell">' + (rightDetail.name || '') + '</div>' +
             '<div class="compare-cell">' + (rightItem.quantity || '') + '</div>' +
             '<div class="compare-cell">' + (rightItem.child_type === 'part' ? '零件' : '部件') + '</div>' +
             '<div class="compare-cell">' + (rightDetail.version || '') + '</div>' +
-            '<div class="compare-cell">' + (changeType === 'added' ? '新增' : changeType === 'removed' ? '删除' : changeType === 'modified' ? '修改' : '未变') + '</div>' +
+            '<div class="compare-cell">' + changeTypeText + '</div>' +
             '</div>';
         } else {
           // 右侧缺失（仅在左侧存在）
           rightRows += '<div class="' + rowClass + ' ' + changeColor + '" style="' + indentStyle + '">' +
+            '<div class="compare-cell">' + levelText + '</div>' +
             '<div class="compare-cell">—</div>' +
             '<div class="compare-cell">—</div>' +
             '<div class="compare-cell">—</div>' +
             '<div class="compare-cell">—</div>' +
             '<div class="compare-cell">—</div>' +
-            '<div class="compare-cell">' + (changeType === 'added' ? '新增' : changeType === 'removed' ? '删除' : changeType === 'modified' ? '修改' : '未变') + '</div>' +
+            '<div class="compare-cell">' + changeTypeText + '</div>' +
             '</div>';
         }
       });
       
+      // 列标题行
+      var columnHeader = '<div class="compare-column-header">' +
+          '<div class="compare-column-cell">层级</div>' +
+          '<div class="compare-column-cell">件号</div>' +
+          '<div class="compare-column-cell">名称</div>' +
+          '<div class="compare-column-cell">用量</div>' +
+          '<div class="compare-column-cell">类型</div>' +
+          '<div class="compare-column-cell">版本</div>' +
+          '<div class="compare-column-cell">变更类型</div>' +
+      '</div>';
+      
       // 组装表格
-      leftTable.innerHTML = leftHeader + '<div class="compare-table-body">' + leftRows + '</div>';
-      rightTable.innerHTML = rightHeader + '<div class="compare-table-body">' + rightRows + '</div>';
+      leftTable.innerHTML = leftHeader + columnHeader + '<div class="compare-table-body">' + leftRows + '</div>';
+      rightTable.innerHTML = rightHeader + columnHeader + '<div class="compare-table-body">' + rightRows + '</div>';
     }
     
     // 更新对比摘要
