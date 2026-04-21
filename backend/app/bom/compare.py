@@ -140,24 +140,38 @@ def flatten_bom_tree(
     if not nodes:
         return []
     
-    # 按层级和路径排序
-    sorted_nodes = sorted(nodes, key=lambda x: (x["level"], x["path"]))
+    # 按层级分组，然后在每个层级内按child_code排序（确保左右两侧排序一致）
+    # 使用child_code作为主要排序键，如果为None则使用child_id
+    nodes_by_level = {}
+    for node in nodes:
+        level = node["level"]
+        if level not in nodes_by_level:
+            nodes_by_level[level] = []
+        nodes_by_level[level].append(node)
     
-    # 为每个层级内的节点分配排序号
+    # 对每个层级内的节点排序
     flattened = []
-    for i, node in enumerate(sorted_nodes):
-        # 生成排序号：三位数字（001, 002, ...）
-        # 这里简单使用索引，实际可能需要更复杂的逻辑
-        sort_num = str(i + 1).zfill(3)
+    for level in sorted(nodes_by_level.keys()):
+        level_nodes = nodes_by_level[level]
+        # 按child_code排序，如果code相同则按child_id排序
+        level_nodes_sorted = sorted(level_nodes, key=lambda x: (
+            x["child_code"] if x["child_code"] is not None else "",
+            x["child_id"]
+        ))
         
-        # 生成匹配键：level:sort:code
-        match_key = f"{node['level']}:{sort_num}:{node['child_code']}"
-        
-        flattened.append({
-            **node,
-            "sort": sort_num,
-            "match_key": match_key
-        })
+        # 分配排序号（001, 002, ...）
+        for i, node in enumerate(level_nodes_sorted, 1):
+            sort_num = str(i).zfill(3)
+            # 匹配键：使用level:child_code（如果child_code为空则使用child_id）
+            # 确保同一层级相同件号的节点能被匹配到，排序号变化将视为修改
+            child_code_or_id = node['child_code'] if node['child_code'] is not None else str(node['child_id'])
+            match_key = f"{level}:{child_code_or_id}"
+            
+            flattened.append({
+                **node,
+                "sort": sort_num,
+                "match_key": match_key
+            })
     
     return flattened
 
@@ -214,7 +228,8 @@ def compare_bom_trees(
                 "child_spec": left_node["child_spec"],
                 "child_version": left_node["child_version"],
                 "child_status": left_node["child_status"],
-                "quantity": left_node["quantity"]
+                "quantity": left_node["quantity"],
+                "sort": left_node["sort"]
             }
             
             right_detail = {
@@ -223,7 +238,8 @@ def compare_bom_trees(
                 "child_spec": right_node["child_spec"],
                 "child_version": right_node["child_version"],
                 "child_status": right_node["child_status"],
-                "quantity": right_node["quantity"]
+                "quantity": right_node["quantity"],
+                "sort": right_node["sort"]
             }
             
             # 检查是否相同
