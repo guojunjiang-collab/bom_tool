@@ -9,41 +9,19 @@ from .auth import require_role
 
 router = APIRouter(prefix="/assemblies", tags=["部件管理"])
 
-def _assembly_response(asm, include_attachments=False):
-    """将部件模型转为 dict，默认不返回附件 Base64 数据"""
-    result = {
+def _assembly_response(asm):
+    """将部件模型转为 dict"""
+    return {
         "id": asm.id,
         "code": asm.code,
         "name": asm.name,
         "spec": asm.spec,
         "version": asm.version,
-        "price": float(asm.price) if asm.price else 0.0,
         "status": asm.status,
-        "remark": asm.remark,
         "revisions": asm.revisions or [],
         "created_at": asm.created_at,
         "updated_at": asm.updated_at,
     }
-    # 仅在明确请求时返回附件数据
-    if include_attachments:
-        result.update({
-            "source_file": asm.source_file,
-            "source_file_data": asm.source_file_data,
-            "drawing": asm.drawing,
-            "drawing_data": asm.drawing_data,
-            "stp": asm.stp,
-            "stp_data": asm.stp_data,
-            "pdf": asm.pdf,
-            "pdf_data": asm.pdf_data,
-        })
-    else:
-        result.update({
-            "source_file": asm.source_file,
-            "drawing": asm.drawing,
-            "stp": asm.stp,
-            "pdf": asm.pdf,
-        })
-    return result
 
 @router.get("/", response_model=list[schemas.AssemblyResponse])
 async def list_assemblies(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin", "engineer"]))):
@@ -56,14 +34,14 @@ async def create_assembly(assembly: schemas.AssemblyCreate, request: Request, db
     db_assembly = crud.create_assembly(db, assembly)
     ip = request.client.host if request.client else None
     crud.create_log(db, current_user.id, current_user.username, "创建部件", "assembly", str(db_assembly.id), f"编码:{assembly.code}", ip)
-    return _assembly_response(db_assembly, include_attachments=True)
+    return _assembly_response(db_assembly)
 
 @router.get("/{assembly_id}", response_model=schemas.AssemblyResponse)
 async def get_assembly(assembly_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin", "engineer"]))):
     db_assembly = crud.get_assembly(db, assembly_id)
     if not db_assembly:
         raise HTTPException(status_code=404, detail="部件不存在")
-    return _assembly_response(db_assembly, include_attachments=True)
+    return _assembly_response(db_assembly)
 
 @router.put("/{assembly_id}", response_model=schemas.AssemblyResponse)
 async def update_assembly(assembly_id: uuid.UUID, assembly_update: schemas.AssemblyUpdate, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin", "engineer"]))):
@@ -72,7 +50,7 @@ async def update_assembly(assembly_id: uuid.UUID, assembly_update: schemas.Assem
         raise HTTPException(status_code=404, detail="部件不存在")
     ip = request.client.host if request.client else None
     crud.create_log(db, current_user.id, current_user.username, "更新部件", "assembly", str(assembly_id), None, ip)
-    return _assembly_response(db_assembly, include_attachments=True)
+    return _assembly_response(db_assembly)
 
 @router.delete("/{assembly_id}")
 async def delete_assembly(assembly_id: uuid.UUID, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin"]))):

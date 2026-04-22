@@ -97,8 +97,6 @@ var Parts = {
       '<div class="form-row"><div class="form-group"><label>零件件号 <span class="required">*</span></label><input type="text" id="fp-code" value="' + (part ? part.code : '') + '" placeholder="如 PT-021"' + ro + '></div><div class="form-group"><label>零件名称 <span class="required">*</span></label><input type="text" id="fp-name" value="' + (part ? part.name : '') + '" placeholder="如 M12螺栓"' + ro + '></div></div>' +
       '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" id="fp-spec" value="' + _esc(part ? part.spec : '') + '"' + ro + '></div><div class="form-group"><label>版本</label><input type="text" id="fp-version" value="' + (part ? part.version || 'A' : 'A') + '" readonly></div></div>' +
       '<div class="form-row"><div class="form-group"><label>状态</label><select id="fp-st"' + roExceptStatus + '><option value="draft"' + (!part || part.status === 'draft' ? ' selected' : '') + '>草稿</option><option value="frozen"' + (part && part.status === 'frozen' ? ' selected' : '') + '>冻结</option><option value="released"' + (part && part.status === 'released' ? ' selected' : '') + '>发布</option><option value="obsolete"' + (part && part.status === 'obsolete' ? ' selected' : '') + '>作废</option></select></div></div>' +
-      '<div class="form-row"><div class="form-group"><label>源文件</label>' + (part && part.sourceFile_data ? '<div class="file-preview"><span class="file-name">' + _esc(part.sourceFile || '') + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.sourceFile_data||'') + '\',\'' + _esc(part.sourceFile||'附件') + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Parts._deletePartAttachment(this,\'sourceFile\')">删除</button></div>' : '<div class="file-preview"><span class="file-name empty">未上传</span></div>') + '<input type="file" id="fp-source" accept="*/*" onchange="Parts._onFileChange(this,\'fp-source\')"' + ro + '></div><div class="form-group"><label>图纸</label>' + (part && part.drawing_data ? '<div class="file-preview"><span class="file-name">' + _esc(part.drawing || '') + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.drawing_data||'') + '\',\'' + _esc(part.drawing||'附件') + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Parts._deletePartAttachment(this,\'drawing\')">删除</button></div>' : '<div class="file-preview"><span class="file-name empty">未上传</span></div>') + '<input type="file" id="fp-drawing" accept="*/*" onchange="Parts._onFileChange(this,\'fp-drawing\')"' + ro + '></div></div>' +
-      '<div class="form-row"><div class="form-group"><label>STP</label>' + (part && part.stp_data ? '<div class="file-preview"><span class="file-name">' + _esc(part.stp || '') + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.stp_data||'') + '\',\'' + _esc(part.stp||'附件') + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Parts._deletePartAttachment(this,\'stp\')">删除</button></div>' : '<div class="file-preview"><span class="file-name empty">未上传</span></div>') + '<input type="file" id="fp-stp" accept="*/*" onchange="Parts._onFileChange(this,\'fp-stp\')"' + ro + '></div><div class="form-group"><label>PDF</label>' + (part && part.pdf_data ? '<div class="file-preview"><span class="file-name">' + _esc(part.pdf || '') + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.pdf_data||'') + '\',\'' + _esc(part.pdf||'附件') + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Parts._deletePartAttachment(this,\'pdf\')">删除</button></div>' : '<div class="file-preview"><span class="file-name empty">未上传</span></div>') + '<input type="file" id="fp-pdf" accept="*/*" onchange="Parts._onFileChange(this,\'fp-pdf\')"' + ro + '></div></div>' +
       '<div id="cf-part-edit-area"></div>' +  // 自定义字段占位
       (isNotDraft ? '<div style="margin-top:10px;color:#faad14;font-size:12px">⚠️ 当前状态为"' + (part.status === 'frozen' ? '冻结' : part.status === 'released' ? '发布' : '作废') + '"，字段已锁定。' + (isFrozen ? '管理员和工程师可修改状态。' : '仅管理员可修改状态。') + '</div>' : ''),
       { footer: '<button class="btn-outline" onclick="UI.closeModal()">取消</button>' + (part && (part.status === 'released' || part.status === 'obsolete') ? '<button class="btn-primary" onclick="Parts._upgradePart(\'' + part.id + '\')">升版</button>' : '') + '<button class="btn-primary" id="btn-sp">保存</button>', large: true,
@@ -128,99 +126,57 @@ var Parts = {
         }
       }
       var newV = part ? part.version : 'A';
-      var files = ['fp-source','fp-drawing','fp-stp','fp-pdf'];
-      var fileKeys = ['sourceFile','drawing','stp','pdf'];
-      var pending = files.length;
-      var results = {};
-      var done = function() {
-        pending--;
-        if (pending > 0) return;
-        var data = {
-          code:code, name:name,
-          spec:document.getElementById('fp-spec').value.trim(),
-          version:newV,
-          status:document.getElementById('fp-st').value,
-        };
-        fileKeys.forEach(function(k) {
-          var r = results[k];
-          if (r) {
-            data[k] = r.name;
-            data[k + '_data'] = r.data;
-          } else {
-            data[k] = part ? (part[k] || '') : '';
-            data[k + '_data'] = part ? (part[k + '_data'] || '') : '';
+      var data = {
+        code:code, name:name,
+        spec:document.getElementById('fp-spec').value.trim(),
+        version:newV,
+        status:document.getElementById('fp-st').value,
+      };
+      if (part) {
+        var _fieldLabels = { code:'件号', name:'名称', spec:'规格型号', status:'状态' };
+        var _trackFields = ['code','name','spec','status'];
+        var _changes = [];
+        _trackFields.forEach(function(f) {
+          var oldVal = (part[f] || '').toString();
+          var newVal = (data[f] || '').toString();
+          if (oldVal !== newVal) {
+            _changes.push({
+              field: _fieldLabels[f] || f,
+              oldVal: oldVal || '(无)',
+              newVal: newVal || '(无)'
+            });
           }
         });
-        if (part) {
-          // 生成修订记录：对比修改前后的字段
-          var _fieldLabels = { code:'件号', name:'名称', spec:'规格型号', status:'状态', sourceFile:'源文件', drawing:'图纸', stp:'STP', pdf:'PDF' };
-          var _trackFields = ['code','name','spec','status','sourceFile','drawing','stp','pdf'];
-          var _changes = [];
-          _trackFields.forEach(function(f) {
-            var oldVal = (part[f] || '').toString();
-            var newVal = (data[f] || '').toString();
-            if (oldVal !== newVal) {
-              _changes.push({
-                field: _fieldLabels[f] || f,
-                oldVal: oldVal || '(无)',
-                newVal: newVal || '(无)'
-              });
-            }
+        if (_changes.length > 0) {
+          var revisions = part.revisions || [];
+          revisions.push({
+            date: Date.now(),
+            author: Auth.getUser() ? Auth.getUser().realName : '未知',
+            changes: _changes
           });
-          // 文件数据变更（上传新文件或删除文件）
-          var _fileDataKeys = ['sourceFile','drawing','stp','pdf'];
-          _fileDataKeys.forEach(function(f) {
-            var oldData = part[f + '_data'] || '';
-            var newData = data[f + '_data'] || '';
-            if (oldData !== newData && !_changes.find(function(c) { return c.field === (_fieldLabels[f] || f); })) {
-              _changes.push({ field: _fieldLabels[f] || f, oldVal: oldData ? '有文件' : '无', newVal: newData ? '有文件' : '无' });
-            }
-          });
-          if (_changes.length > 0) {
-            var revisions = part.revisions || [];
-            revisions.push({
-              date: Date.now(),
-              author: Auth.getUser() ? Auth.getUser().realName : '未知',
-              changes: _changes
-            });
-            data.revisions = revisions;
-          }
-          Store.update('parts', id, data);
-          Store.addLog('编辑零件', '修改零件 ' + code);
-          // 保存自定义字段值
-          var cfDefsForSave = Store.getAll('custom_field_defs');
-          var cfVals = _collectCFValues(cfDefsForSave, 'part');
-          Store.update('parts', id, { customFields: cfVals }, { skipSync: true });
-          _saveCFValues('part', id, cfVals, cfDefsForSave);
-          UI.toast('零件更新成功', 'success');
-        } else {
-          data.revisions = [];
-          Store.add('parts', data);
-          Store.addLog('新增零件', '新增零件 ' + code + ' - ' + name);
-          // 新增零件后保存自定义字段值
-          var cfDefsForSave2 = Store.getAll('custom_field_defs');
-          var cfVals2 = _collectCFValues(cfDefsForSave2, 'part');
-          if (Object.keys(cfVals2).length > 0) {
-            data.customFields = cfVals2;
-            Store.update('parts', data.id, { customFields: cfVals2 }, { skipSync: true });
-            _saveCFValues('part', data.id, cfVals2, cfDefsForSave2);
-          }
-          UI.toast('零件新增成功', 'success');
+          data.revisions = revisions;
         }
-        UI.closeModal(); Router.render();
-      };
-      files.forEach(function(fid, i) {
-        var el = document.getElementById(fid);
-        if (el && el.files && el.files[0]) {
-          UI._fileToBase64(el.files[0], function(base64) {
-            results[fileKeys[i]] = base64 ? { name: el.files[0].name, data: base64 } : null;
-            done();
-          });
-        } else {
-          results[fileKeys[i]] = null;
-          done();
+        Store.update('parts', id, data);
+        Store.addLog('编辑零件', '修改零件 ' + code);
+        var cfDefsForSave = Store.getAll('custom_field_defs');
+        var cfVals = _collectCFValues(cfDefsForSave, 'part');
+        Store.update('parts', id, { customFields: cfVals }, { skipSync: true });
+        _saveCFValues('part', id, cfVals, cfDefsForSave);
+        UI.toast('零件更新成功', 'success');
+      } else {
+        data.revisions = [];
+        Store.add('parts', data);
+        Store.addLog('新增零件', '新增零件 ' + code + ' - ' + name);
+        var cfDefsForSave2 = Store.getAll('custom_field_defs');
+        var cfVals2 = _collectCFValues(cfDefsForSave2, 'part');
+        if (Object.keys(cfVals2).length > 0) {
+          data.customFields = cfVals2;
+          Store.update('parts', data.id, { customFields: cfVals2 }, { skipSync: true });
+          _saveCFValues('part', data.id, cfVals2, cfDefsForSave2);
         }
-      });
+        UI.toast('零件新增成功', 'success');
+      }
+      UI.closeModal(); Router.render();
     };
   },
 
@@ -425,8 +381,6 @@ var Parts = {
         '<div class="form-row"><div class="form-group"><label>件号</label><input type="text" value="' + _esc(part.code) + '"' + ro + '></div><div class="form-group"><label>名称</label><input type="text" value="' + _esc(part.name) + '"' + ro + '></div></div>' +
         '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" value="' + _esc(part.spec||'') + '"' + ro + '></div><div class="form-group"><label>版本</label><input type="text" value="' + (part.version||'A') + '"' + ro + '></div></div>' +
         '<div class="form-row"><div class="form-group"><label>状态</label>' + UI.statusTag(part.status) + '</div></div>' +
-        '<div class="form-row"><div class="form-group"><label>源文件</label><input type="text" value="' + _esc(part.sourceFile||'') + '"' + ro + '>' + (part.sourceFile_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.sourceFile_data||'') + '\',\'' + _esc(part.sourceFile||'附件') + '\')">⬇ 下载</button>' : '') + '</div><div class="form-group"><label>图纸</label><input type="text" value="' + _esc(part.drawing||'') + '"' + ro + '>' + (part.drawing_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.drawing_data||'') + '\',\'' + _esc(part.drawing||'附件') + '\')">⬇ 下载</button>' : '') + '</div></div>' +
-        '<div class="form-row"><div class="form-group"><label>STP</label><input type="text" value="' + _esc(part.stp||'') + '"' + ro + '>' + (part.stp_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.stp_data||'') + '\',\'' + _esc(part.stp||'附件') + '\')">⬇ 下载</button>' : '') + '</div><div class="form-group"><label>PDF</label><input type="text" value="' + _esc(part.pdf||'') + '"' + ro + '>' + (part.pdf_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.pdf_data||'') + '\',\'' + _esc(part.pdf||'附件') + '\')">⬇ 下载</button>' : '') + '</div></div>' +
         cfHtml +
         '<h4 style="margin:20px 0 12px">📝 修订记录 (' + revs.length + ')</h4>' +
         (revs.length > 0 ? '<div class="log-list">' + revs.map(function(rev) {

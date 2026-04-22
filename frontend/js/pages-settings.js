@@ -407,7 +407,34 @@ function _saveCFValues(entityType, entityId, cfValues, cfDefs) {
     }
   });
   if (values.length === 0) return Promise.resolve();
-  return API.setCustomFieldValues(entityType, entityId, values).catch(function(e) {
-    console.warn('自定义字段值保存失败:', e);
-  });
+
+  // 等待同步完成后再保存自定义字段值
+  var entityKey = entityType === 'part' ? 'parts' : 'components';
+  var tryCount = 0;
+  var maxRetries = 30;
+
+  var trySave = function() {
+    // 尝试获取服务器ID，如果没有映射则使用原ID
+    var serverId = Store.resolveId(entityKey, entityId) || entityId;
+    console.log('[DEBUG] _saveCFValues:', entityType, '本地ID:', entityId, '服务器ID:', serverId, '尝试次数:', tryCount);
+    // 如果返回的ID等于本地ID，说明还没有映射到服务器ID，需要等待
+    if (serverId === entityId) {
+      tryCount++;
+      if (tryCount < maxRetries) {
+        console.log('[DEBUG] 等待同步完成...');
+        return new Promise(function(resolve) { setTimeout(resolve, 500); }).then(trySave);
+      }
+    }
+    console.log('[DEBUG] 保存自定义字段到服务器, ID:', serverId);
+    return API.setCustomFieldValues(entityType, serverId, values).catch(function(e) {
+      console.warn('[DEBUG] 保存失败:', e.message);
+      tryCount++;
+      if (tryCount < maxRetries) {
+        return new Promise(function(resolve) { setTimeout(resolve, 500); }).then(trySave);
+      }
+      console.warn('自定义字段值保存失败:', e);
+    });
+  };
+
+  return trySave();
 }

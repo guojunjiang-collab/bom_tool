@@ -66,6 +66,12 @@ const SyncManager = {
 
       clearBtn.onclick = function() {
 
+        // 检查是否有正在进行的同步任务
+        if (Store._syncRunning || (Store._syncQueue && Store._syncQueue.length > 0)) {
+          UI.alert('⚠️ 当前有数据正在上传到服务器，请稍后再尝试清除缓存，避免数据上传失败。');
+          return;
+        }
+
         UI.confirm('⚠️ 将清除本地所有缓存数据（保留登录状态），清除后请点击「检出数据」重新拉取。确定继续吗？', function() {
 
           // 清除业务数据缓存，保留登录 token 和用户信息
@@ -568,6 +574,44 @@ const SyncManager = {
 
       }
 
+      // ===== 加载自定义字段值 =====
+      this._updateProgress(32, '正在加载自定义字段...', '正在获取自定义字段值...');
+
+      try {
+
+        var parts = Store.getAll('parts');
+        for (var pfi = 0; pfi < parts.length; pfi++) {
+          if (this._cancelled) break;
+          var pitem = parts[pfi];
+          try {
+            var pvals = await API.getCustomFieldValues('part', pitem.id);
+            if (pvals && Array.isArray(pvals)) {
+              var pcfMap = {};
+              pvals.forEach(function(v) { if (v.field_key) pcfMap[v.field_key] = v.value; });
+              Store.update('parts', pitem.id, { customFields: pcfMap }, { silent: true, skipSync: true });
+            }
+          } catch (e) { console.warn('加载零件自定义字段失败:', pitem.code); }
+        }
+
+        var comps = Store.getAll('components');
+        for (var cfi = 0; cfi < comps.length; cfi++) {
+          if (this._cancelled) break;
+          var citem = comps[cfi];
+          try {
+            var cvals = await API.getCustomFieldValues('component', citem.id);
+            if (cvals && Array.isArray(cvals)) {
+              var ccfMap = {};
+              cvals.forEach(function(v) { if (v.field_key) ccfMap[v.field_key] = v.value; });
+              Store.update('components', citem.id, { customFields: ccfMap }, { silent: true, skipSync: true });
+            }
+          } catch (e) { console.warn('加载部件自定义字段失败:', citem.code); }
+        }
+
+      } catch (e) {
+
+        console.error('加载自定义字段失败:', e);
+
+      }
 
 
       // ===== 第二阶段：检查冲突并提示（不执行本地上传）=====

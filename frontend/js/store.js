@@ -39,9 +39,9 @@ const Store = {
   },
 
   // 实体字段到 API 字段的映射（本地字段名 → API 字段名）
-  _fieldMap: {
-    parts:      { status: 'status', remark: 'remark', revisions: 'revisions', createdAt: 'created_at', updatedAt: 'updated_at' },
-    components: { version: 'version', remark: 'remark', revisions: 'revisions', createdAt: 'created_at', updatedAt: 'updated_at', price: 'price' },
+_fieldMap: {
+    parts:      { status: 'status', revisions: 'revisions', createdAt: 'created_at', updatedAt: 'updated_at' },
+    components: { version: 'version', revisions: 'revisions', createdAt: 'created_at', updatedAt: 'updated_at' },
     bom_items:  { childId: 'child_id', childType: 'child_type', partId: 'part_id', componentId: 'component_id', quantity: 'quantity', parentType: 'parent_type', parentId: 'parent_id', createdAt: 'created_at' },
     users:      { realName: 'real_name', department: 'department', phone: 'phone', createdAt: 'created_at', updatedAt: 'updated_at' },
     dict_materials: { id: 'id', value: 'value', name: 'name' },
@@ -442,20 +442,151 @@ const Store = {
     return await API.syncAll(parts, assemblies);
   },
 
-  // ===== 首次登录后主动推送本地数据 =====
-  async onLogin() {
-    if (!API._token) return;
-    this._syncStatus = 'syncing';
-    this._updateSyncIndicator();
-    try {
-      const results = await this.syncAll();
-      this._syncStatus = 'idle';
-      this._updateSyncIndicator();
-      return results;
-    } catch (e) {
-      this._syncStatus = 'error';
-      this._updateSyncIndicator();
-      return { error: e.message };
-    }
-  }
-};
+  // ===== 首次登录后主动推送本地数据 =====
+
+  async onLogin() {
+
+    if (!API._token) return;
+
+    this._syncStatus = 'syncing';
+
+    this._updateSyncIndicator();
+
+    try {
+
+      await this._loadDataFromServer();
+
+      const results = await this.syncAll();
+
+      await this._loadCustomFieldData();
+
+      this._syncStatus = 'idle';
+
+      this._updateSyncIndicator();
+
+      return results;
+
+    } catch (e) {
+
+      this._syncStatus = 'error';
+
+      this._updateSyncIndicator();
+
+      return { error: e.message };
+
+    }
+
+  },
+
+  // ===== 从服务器拉取数据到本地 =====
+
+  async _loadDataFromServer() {
+
+    try {
+
+      const serverParts = await API.getParts().catch(() => []);
+
+      const serverComps = await API.getAssemblies().catch(() => []);
+
+      // 转换字段名 snake_case -> camelCase
+      const convertFields = (data) => {
+        return data.map(item => {
+          const out = {};
+          for (const k in item) {
+            const camel = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+            out[camel] = item[k];
+          }
+          return out;
+        });
+      };
+
+      const localParts = convertFields(serverParts);
+      const localComps = convertFields(serverComps);
+
+      this.saveAll('parts', localParts);
+      this.saveAll('components', localComps);
+
+    } catch (e) {
+
+      console.warn('[Store] 从服务器加载数据失败:', e.message);
+
+    }
+
+  },
+
+  // ===== 加载自定义字段数据 =====
+
+  async _loadCustomFieldData() {
+
+    try {
+
+      const cfDefs = await API.getCustomFieldDefinitions();
+
+      this.saveAll('custom_field_defs', cfDefs || []);
+
+      const parts = this.getAll('parts');
+
+      const self = this;
+      const partPromises = parts.map(async function(part) {
+        try {
+          const serverId = self.resolveId('parts', part.id) || part.id;
+          const values = await API.getCustomFieldValues('part', serverId);
+          if (values && Array.isArray(values)) {
+            const cfMap = {};
+            values.forEach(function(v) {
+              if (v.field_key) cfMap[v.field_key] = v.value;
+            });
+            return { partId: part.id, customFields: cfMap };
+          }
+        } catch (e) {
+          console.warn('[Store] 加载零件自定义字段失败:', part.id, e.message);
+        }
+        return null;
+      });
+
+      const partResults = await Promise.all(partPromises);
+      partResults.forEach(function(r) {
+        if (r) {
+          const p = parts.find(function(x) { return x.id === r.partId; });
+          if (p) p.customFields = r.customFields;
+        }
+      });
+      this.saveAll('parts', parts);
+
+      const components = this.getAll('components');
+
+      const compPromises = components.map(async function(comp) {
+        try {
+          const serverId = self.resolveId('components', comp.id) || comp.id;
+          const values = await API.getCustomFieldValues('component', serverId);
+          if (values && Array.isArray(values)) {
+            const cfMap = {};
+            values.forEach(function(v) {
+              if (v.field_key) cfMap[v.field_key] = v.value;
+            });
+            return { compId: comp.id, customFields: cfMap };
+          }
+        } catch (e) {
+          console.warn('[Store] 加载部件自定义字段失败:', comp.id, e.message);
+        }
+        return null;
+      });
+
+      const compResults = await Promise.all(compPromises);
+      compResults.forEach(function(r) {
+        if (r) {
+          const c = components.find(function(x) { return x.id === r.compId; });
+          if (c) c.customFields = r.customFields;
+        }
+      });
+      this.saveAll('components', components);
+
+    } catch (e) {
+
+      console.warn('[Store] 加载自定义字段定义失败:', e);
+
+    }
+
+  },
+  
+};

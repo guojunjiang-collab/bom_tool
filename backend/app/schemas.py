@@ -33,21 +33,9 @@ class PartBase(BaseSchema):
     code: str = Field(..., min_length=1, max_length=64)
     name: str = Field(..., min_length=1, max_length=255)
     spec: Optional[str] = None
-    material_id: Optional[uuid.UUID] = None
     version: str = "A"
-    price: float = 0.0
-    stock: int = 0
     status: str = "draft"
-    remark: Optional[str] = None
     revisions: Optional[List[Any]] = None
-    source_file: Optional[str] = None
-    source_file_data: Optional[str] = None
-    drawing: Optional[str] = None
-    drawing_data: Optional[str] = None
-    stp: Optional[str] = None
-    stp_data: Optional[str] = None
-    pdf: Optional[str] = None
-    pdf_data: Optional[str] = None
 
 
 class PartCreate(PartBase):
@@ -56,45 +44,22 @@ class PartCreate(PartBase):
 class PartUpdate(BaseSchema):
     name: Optional[str] = None
     spec: Optional[str] = None
-    material_id: Optional[uuid.UUID] = None
     version: Optional[str] = None
-    price: Optional[float] = None
-    stock: Optional[int] = None
     status: Optional[str] = None
-    remark: Optional[str] = None
     revisions: Optional[List[Any]] = None
-    source_file: Optional[str] = None
-    source_file_data: Optional[str] = None
-    drawing: Optional[str] = None
-    drawing_data: Optional[str] = None
-    stp: Optional[str] = None
-    stp_data: Optional[str] = None
-    pdf: Optional[str] = None
-    pdf_data: Optional[str] = None
 
 class PartResponse(PartBase):
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
-    material: Optional[str] = None  # 字典值，非ID
 
 class AssemblyBase(BaseSchema):
     code: str = Field(..., min_length=1, max_length=64)
     name: str = Field(..., min_length=1, max_length=255)
     spec: Optional[str] = None
-    version: str = "A"
-    price: float = 0.0
+    version: str = "V1.0"
     status: str = "draft"
-    remark: Optional[str] = None
     revisions: Optional[List[Any]] = None
-    source_file: Optional[str] = None
-    source_file_data: Optional[str] = None
-    drawing: Optional[str] = None
-    drawing_data: Optional[str] = None
-    stp: Optional[str] = None
-    stp_data: Optional[str] = None
-    pdf: Optional[str] = None
-    pdf_data: Optional[str] = None
 
 class AssemblyCreate(AssemblyBase):
     pass
@@ -103,18 +68,8 @@ class AssemblyUpdate(BaseSchema):
     name: Optional[str] = None
     spec: Optional[str] = None
     version: Optional[str] = None
-    price: Optional[float] = None
     status: Optional[str] = None
-    remark: Optional[str] = None
     revisions: Optional[List[Any]] = None
-    source_file: Optional[str] = None
-    source_file_data: Optional[str] = None
-    drawing: Optional[str] = None
-    drawing_data: Optional[str] = None
-    stp: Optional[str] = None
-    stp_data: Optional[str] = None
-    pdf: Optional[str] = None
-    pdf_data: Optional[str] = None
 
 class AssemblyResponse(AssemblyBase):
     id: uuid.UUID

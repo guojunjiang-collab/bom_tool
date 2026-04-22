@@ -25,25 +25,11 @@ class Part(Base):
     code = Column(String(64), nullable=False)
     name = Column(String(255), nullable=False)
     spec = Column(String(255))
-    material_id = Column(UUID(as_uuid=True), ForeignKey('dictionaries.id', ondelete='SET NULL'), nullable=True)
     version = Column(String(32), default="A")
-    price = Column(Numeric(12, 2), default=0.0)
-    stock = Column(Integer, default=0)
     status = Column(String(32), nullable=False, default="draft")
-    remark = Column(Text)
     revisions = Column(JSONB, default=[])
-    source_file = Column(Text, nullable=True)      # 源文件名
-    source_file_data = Column(Text, nullable=True)  # 源文件Base64
-    drawing = Column(Text, nullable=True)           # 图纸文件名
-    drawing_data = Column(Text, nullable=True)      # 图纸Base64
-    stp = Column(Text, nullable=True)               # STP文件名
-    stp_data = Column(Text, nullable=True)         # STP Base64
-    pdf = Column(Text, nullable=True)               # PDF文件名
-    pdf_data = Column(Text, nullable=True)          # PDF Base64
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    # 关系：零件 → 材质字典（通过 Dictionary 表）
-    material = relationship('Dictionary', foreign_keys=[material_id])
 
 class Assembly(Base):
     __tablename__ = "assemblies"
@@ -52,18 +38,8 @@ class Assembly(Base):
     name = Column(String(255), nullable=False)
     spec = Column(String(255))
     version = Column(String(32), default="V1.0")
-    price = Column(Numeric(12, 2), default=0.0)
     status = Column(String(32), nullable=False, default="draft")
-    remark = Column(Text)
     revisions = Column(JSONB, default=[])
-    source_file = Column(Text, nullable=True)
-    source_file_data = Column(Text, nullable=True)
-    drawing = Column(Text, nullable=True)
-    drawing_data = Column(Text, nullable=True)
-    stp = Column(Text, nullable=True)
-    stp_data = Column(Text, nullable=True)
-    pdf = Column(Text, nullable=True)
-    pdf_data = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
