@@ -466,7 +466,7 @@ var Components = {
 
       '<div class="form-row"><div class="form-group"><label>件号</label><input type="text" value="' + _esc(comp.code) + '" readonly></div><div class="form-group"><label>名称</label><input type="text" value="' + _esc(comp.name) + '" readonly></div></div>' +
       '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" value="' + _esc(comp.spec||'') + '" readonly></div><div class="form-group"><label>版本</label><input type="text" value="' + (comp.version||'A') + '" readonly></div></div>' +
-      '<div class="form-row"><div class="form-group"><label>状态</label>' + UI.statusTag(comp.status) + '</div><div class="form-group"><label>备注</label><input type="text" value="' + _esc(comp.remark||'') + '" readonly></div></div>' +
+      '<div class="form-row"><div class="form-group"><label>状态</label>' + UI.statusTag(comp.status) + '</div></div>' +
       cfHtml +
 
       '<h4 style="margin-bottom:12px">子项列表 (' + (comp.parts||[]).length + '种)</h4>' +
@@ -580,7 +580,7 @@ var Components = {
 
       '<div class="form-row"><div class="form-group"><label>STP</label>' + (comp && comp.stp_data ? '<div class="file-preview"><span class="file-name">' + _esc(comp.stp || '') + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (comp.stp_data||'') + '\',\'' + _esc(comp.stp||'附件') + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Components._deleteCompAttachment(this,\'stp\')">删除</button></div>' : '<div class="file-preview"><span class="file-name empty">未上传</span></div>') + '<input type="file" id="fc-stp" accept="*/*" onchange="Components._onCompFileChange(this,\'fc-stp\')"' + ro + '></div><div class="form-group"><label>PDF</label>' + (comp && comp.pdf_data ? '<div class="file-preview"><span class="file-name">' + _esc(comp.pdf || '') + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (comp.pdf_data||'') + '\',\'' + _esc(comp.pdf||'附件') + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Components._deleteCompAttachment(this,\'pdf\')">删除</button></div>' : '<div class="file-preview"><span class="file-name empty">未上传</span></div>') + '<input type="file" id="fc-pdf" accept="*/*" onchange="Components._onCompFileChange(this,\'fc-pdf\')"' + ro + '></div></div>' +
 
-      '<div class="form-group full"><label>备注</label><textarea id="fc-rem"' + ro + '>' + _esc(comp ? comp.remark||'' : '') + '</textarea></div>' +
+      '' +
       '<div id="cf-comp-edit-area"></div>' +
       '<h4 style="margin:8px 0 12px">子项列表</h4><div id="child-items-container">' + Components._renderChildItems(comp) + '</div>' + (canE ? '<button class="btn-outline btn-sm" id="btn-add-child">＋ 添加子项</button>' : '<div style="color:#faad14;font-size:12px;margin-top:8px">⚠️ 当前状态锁定，子项不可修改</div>') +
 
@@ -658,8 +658,6 @@ var Components = {
 
           status:document.getElementById('fc-st').value,
 
-          remark:document.getElementById('fc-rem').value.trim(),
-
           parts:parts,
 
           version:newV
@@ -688,9 +686,9 @@ var Components = {
 
         if (comp) {
 
-          var _compFieldLabels = { code:'件号', name:'名称', spec:'规格型号', status:'状态', remark:'备注', sourceFile:'源文件', drawing:'图纸', stp:'STP', pdf:'PDF' };
+          var _compFieldLabels = { code:'件号', name:'名称', spec:'规格型号', status:'状态', sourceFile:'源文件', drawing:'图纸', stp:'STP', pdf:'PDF' };
 
-          var _compTrackFields = ['code','name','spec','status','remark','sourceFile','drawing','stp','pdf'];
+          var _compTrackFields = ['code','name','spec','status','sourceFile','drawing','stp','pdf'];
 
           var _compChanges = [];
 
