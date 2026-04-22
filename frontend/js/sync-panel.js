@@ -1,8 +1,10 @@
-const SyncPanel = {
-  // 初始化面板
-  init: function() {
-    const panel = document.getElementById('sync-panel');
-    if (!panel) return;
+const SyncPanel = {
+
+  // 初始化面板
+
+  init: function() {
+    const panel = document.getElementById('sync-panel');
+    if (!panel) return;
     
     // 绑定事件
     document.getElementById('sync-panel-toggle').onclick = () => this.toggleMinimize();
@@ -83,7 +85,7 @@ const SyncPanel = {
     if (!listEl) return;
     
     if (queue.length === 0) {
-      listEl.innerHTML = '<div style="padding:16px;text-align:center;color:#999;font-size:12px">检出队列为空</div>';
+      listEl.innerHTML = '<div style="padding:16px;text-align:center;color:#999;font-size:12px">上传队列为空</div>';
       return;
     }
     

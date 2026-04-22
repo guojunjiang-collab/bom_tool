@@ -36,8 +36,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // 页面加载完成后初始化同步面板
-document.addEventListener('DOMContentLoaded', function() {
-  setTimeout(() => {
-    if (Store) SyncPanel.init();
-  }, 1000);
-});
+// SyncPanel 已在 index.html 的内联脚本中初始化
