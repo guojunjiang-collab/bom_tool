@@ -100,6 +100,7 @@ var Parts = {
       '<div class="form-row"><div class="form-group"><label>源文件</label>' + (part && part.sourceFile_data ? '<div class="file-preview"><span class="file-name">' + _esc(part.sourceFile || '') + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.sourceFile_data||'') + '\',\'' + _esc(part.sourceFile||'附件') + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Parts._deletePartAttachment(this,\'sourceFile\')">删除</button></div>' : '<div class="file-preview"><span class="file-name empty">未上传</span></div>') + '<input type="file" id="fp-source" accept="*/*" onchange="Parts._onFileChange(this,\'fp-source\')"' + ro + '></div><div class="form-group"><label>图纸</label>' + (part && part.drawing_data ? '<div class="file-preview"><span class="file-name">' + _esc(part.drawing || '') + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.drawing_data||'') + '\',\'' + _esc(part.drawing||'附件') + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Parts._deletePartAttachment(this,\'drawing\')">删除</button></div>' : '<div class="file-preview"><span class="file-name empty">未上传</span></div>') + '<input type="file" id="fp-drawing" accept="*/*" onchange="Parts._onFileChange(this,\'fp-drawing\')"' + ro + '></div></div>' +
       '<div class="form-row"><div class="form-group"><label>STP</label>' + (part && part.stp_data ? '<div class="file-preview"><span class="file-name">' + _esc(part.stp || '') + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.stp_data||'') + '\',\'' + _esc(part.stp||'附件') + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Parts._deletePartAttachment(this,\'stp\')">删除</button></div>' : '<div class="file-preview"><span class="file-name empty">未上传</span></div>') + '<input type="file" id="fp-stp" accept="*/*" onchange="Parts._onFileChange(this,\'fp-stp\')"' + ro + '></div><div class="form-group"><label>PDF</label>' + (part && part.pdf_data ? '<div class="file-preview"><span class="file-name">' + _esc(part.pdf || '') + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.pdf_data||'') + '\',\'' + _esc(part.pdf||'附件') + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Parts._deletePartAttachment(this,\'pdf\')">删除</button></div>' : '<div class="file-preview"><span class="file-name empty">未上传</span></div>') + '<input type="file" id="fp-pdf" accept="*/*" onchange="Parts._onFileChange(this,\'fp-pdf\')"' + ro + '></div></div>' +
       '<div class="form-group full"><label>备注</label><textarea id="fp-rem"' + ro + '>' + (part ? _esc(part.remark||'') : '') + '</textarea></div>' +
+      '<div id="cf-part-edit-area"></div>' +  // 自定义字段占位
       (isNotDraft ? '<div style="margin-top:10px;color:#faad14;font-size:12px">⚠️ 当前状态为"' + (part.status === 'frozen' ? '冻结' : part.status === 'released' ? '发布' : '作废') + '"，字段已锁定。' + (isFrozen ? '管理员和工程师可修改状态。' : '仅管理员可修改状态。') + '</div>' : ''),
       { footer: '<button class="btn-outline" onclick="UI.closeModal()">取消</button>' + (part && (part.status === 'released' || part.status === 'obsolete') ? '<button class="btn-primary" onclick="Parts._upgradePart(\'' + part.id + '\')">升版</button>' : '') + '<button class="btn-primary" id="btn-sp">保存</button>', large: true,
         afterRender: function() {
@@ -114,6 +115,13 @@ var Parts = {
             opt.textContent = m.value;
             if (m.id === curId) opt.selected = true;
             sel.appendChild(opt);
+          });
+          // 加载自定义字段编辑区
+          _loadCFDefs().then(function(cfDefs) {
+            var cfArea = document.getElementById('cf-part-edit-area');
+            if (!cfArea) return;
+            var cfValues = part ? (part.customFields || {}) : {};
+            cfArea.innerHTML = _renderCFEditHtml(cfValues, cfDefs, 'part', ro);
           });
         }
       });
@@ -200,11 +208,24 @@ var Parts = {
           }
           Store.update('parts', id, data);
           Store.addLog('编辑零件', '修改零件 ' + code);
+          // 保存自定义字段值
+          var cfDefsForSave = Store.getAll('custom_field_defs');
+          var cfVals = _collectCFValues(cfDefsForSave, 'part');
+          Store.update('parts', id, { customFields: cfVals }, { skipSync: true });
+          _saveCFValues('part', id, cfVals, cfDefsForSave);
           UI.toast('零件更新成功', 'success');
         } else {
           data.revisions = [];
           Store.add('parts', data);
           Store.addLog('新增零件', '新增零件 ' + code + ' - ' + name);
+          // 新增零件后保存自定义字段值
+          var cfDefsForSave2 = Store.getAll('custom_field_defs');
+          var cfVals2 = _collectCFValues(cfDefsForSave2, 'part');
+          if (Object.keys(cfVals2).length > 0) {
+            data.customFields = cfVals2;
+            Store.update('parts', data.id, { customFields: cfVals2 }, { skipSync: true });
+            _saveCFValues('part', data.id, cfVals2, cfDefsForSave2);
+          }
           UI.toast('零件新增成功', 'success');
         }
         UI.closeModal(); Router.render();
@@ -414,24 +435,33 @@ var Parts = {
     if (!part) return;
     var ro = ' readonly';
     var revs = (part.revisions || []).slice().reverse();
-    UI.modal('零件详情',
-      '<div class="form-row"><div class="form-group"><label>件号</label><input type="text" value="' + _esc(part.code) + '"' + ro + '></div><div class="form-group"><label>名称</label><input type="text" value="' + _esc(part.name) + '"' + ro + '></div></div>' +
-      '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" value="' + _esc(part.spec||'') + '"' + ro + '></div><div class="form-group"><label>材料</label><input type="text" value="' + _esc(part.material||'') + '"' + ro + '></div></div>' +
-      '<div class="form-row"><div class="form-group"><label>版本</label><input type="text" value="' + (part.version||'A') + '"' + ro + '></div><div class="form-group"><label>状态</label>' + UI.statusTag(part.status) + '</div></div>' +
-      '<div class="form-row"><div class="form-group"><label>源文件</label><input type="text" value="' + _esc(part.sourceFile||'') + '"' + ro + '>' + (part.sourceFile_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.sourceFile_data||'') + '\',\'' + _esc(part.sourceFile||'附件') + '\')">⬇ 下载</button>' : '') + '</div><div class="form-group"><label>图纸</label><input type="text" value="' + _esc(part.drawing||'') + '"' + ro + '>' + (part.drawing_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.drawing_data||'') + '\',\'' + _esc(part.drawing||'附件') + '\')">⬇ 下载</button>' : '') + '</div></div>' +
-      '<div class="form-row"><div class="form-group"><label>STP</label><input type="text" value="' + _esc(part.stp||'') + '"' + ro + '>' + (part.stp_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.stp_data||'') + '\',\'' + _esc(part.stp||'附件') + '\')">⬇ 下载</button>' : '') + '</div><div class="form-group"><label>PDF</label><input type="text" value="' + _esc(part.pdf||'') + '"' + ro + '>' + (part.pdf_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.pdf_data||'') + '\',\'' + _esc(part.pdf||'附件') + '\')">⬇ 下载</button>' : '') + '</div></div>' +
-      (part.remark ? '<div class="form-group"><label>备注</label><textarea' + ro + ' style="width:100%;min-height:60px;resize:vertical;padding:8px;border:1px solid #ddd;border-radius:4px;background:#f9f9f9">' + _esc(part.remark) + '</textarea></div>' : '') +
-      '<h4 style="margin:20px 0 12px">📝 修订记录 (' + revs.length + ')</h4>' +
-      (revs.length > 0 ? '<div class="log-list">' + revs.map(function(rev) {
-        var changesHtml = rev.changes.map(function(c) {
-          return '<span class="rev-change"><strong>' + _esc(c.field) + '</strong>：' +
-            '<span style="color:#ff4d4f;text-decoration:line-through">' + _esc(c.oldVal || '(空)') + '</span> → ' +
-            '<span style="color:#52c41a">' + _esc(c.newVal || '(空)') + '</span></span>';
-        }).join('&nbsp;&nbsp;');
-        return '<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:4px">' +
-          '<div><span class="log-time">' + UI.formatDate(rev.date) + '</span><span class="log-user">' + _esc(rev.author) + '</span></div>' +
-          '<div style="font-size:13px;line-height:1.6">' + changesHtml + '</div></div>';
-      }).join('') + '</div>' : '<div style="padding:16px;text-align:center;color:var(--text-light);background:#fafafa;border-radius:4px">暂无修订记录</div>'),
-      { footer: '<button class="btn-primary" onclick="UI.closeModal()">关闭</button>' });
+
+    // 加载自定义字段
+    _loadCFDefs().then(function(cfDefs) {
+      var cfValues = part.customFields || {};
+      // 如果本地没有缓存，尝试从API加载
+      var cfHtml = _renderCFViewHtml(cfValues, cfDefs, 'part');
+
+      UI.modal('零件详情',
+        '<div class="form-row"><div class="form-group"><label>件号</label><input type="text" value="' + _esc(part.code) + '"' + ro + '></div><div class="form-group"><label>名称</label><input type="text" value="' + _esc(part.name) + '"' + ro + '></div></div>' +
+        '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" value="' + _esc(part.spec||'') + '"' + ro + '></div><div class="form-group"><label>材料</label><input type="text" value="' + _esc(part.material||'') + '"' + ro + '></div></div>' +
+        '<div class="form-row"><div class="form-group"><label>版本</label><input type="text" value="' + (part.version||'A') + '"' + ro + '></div><div class="form-group"><label>状态</label>' + UI.statusTag(part.status) + '</div></div>' +
+        '<div class="form-row"><div class="form-group"><label>源文件</label><input type="text" value="' + _esc(part.sourceFile||'') + '"' + ro + '>' + (part.sourceFile_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.sourceFile_data||'') + '\',\'' + _esc(part.sourceFile||'附件') + '\')">⬇ 下载</button>' : '') + '</div><div class="form-group"><label>图纸</label><input type="text" value="' + _esc(part.drawing||'') + '"' + ro + '>' + (part.drawing_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.drawing_data||'') + '\',\'' + _esc(part.drawing||'附件') + '\')">⬇ 下载</button>' : '') + '</div></div>' +
+        '<div class="form-row"><div class="form-group"><label>STP</label><input type="text" value="' + _esc(part.stp||'') + '"' + ro + '>' + (part.stp_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.stp_data||'') + '\',\'' + _esc(part.stp||'附件') + '\')">⬇ 下载</button>' : '') + '</div><div class="form-group"><label>PDF</label><input type="text" value="' + _esc(part.pdf||'') + '"' + ro + '>' + (part.pdf_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part.pdf_data||'') + '\',\'' + _esc(part.pdf||'附件') + '\')">⬇ 下载</button>' : '') + '</div></div>' +
+        (part.remark ? '<div class="form-group"><label>备注</label><textarea' + ro + ' style="width:100%;min-height:60px;resize:vertical;padding:8px;border:1px solid #ddd;border-radius:4px;background:#f9f9f9">' + _esc(part.remark) + '</textarea></div>' : '') +
+        cfHtml +
+        '<h4 style="margin:20px 0 12px">📝 修订记录 (' + revs.length + ')</h4>' +
+        (revs.length > 0 ? '<div class="log-list">' + revs.map(function(rev) {
+          var changesHtml = rev.changes.map(function(c) {
+            return '<span class="rev-change"><strong>' + _esc(c.field) + '</strong>：' +
+              '<span style="color:#ff4d4f;text-decoration:line-through">' + _esc(c.oldVal || '(空)') + '</span> → ' +
+              '<span style="color:#52c41a">' + _esc(c.newVal || '(空)') + '</span></span>';
+          }).join('&nbsp;&nbsp;');
+          return '<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:4px">' +
+            '<div><span class="log-time">' + UI.formatDate(rev.date) + '</span><span class="log-user">' + _esc(rev.author) + '</span></div>' +
+            '<div style="font-size:13px;line-height:1.6">' + changesHtml + '</div></div>';
+        }).join('') + '</div>' : '<div style="padding:16px;text-align:center;color:var(--text-light);background:#fafafa;border-radius:4px">暂无修订记录</div>'),
+        { footer: '<button class="btn-primary" onclick="UI.closeModal()">关闭</button>' });
+    });
   }
 };

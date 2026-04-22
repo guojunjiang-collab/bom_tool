@@ -47,7 +47,7 @@ var Components = {
 
           '<div class="spacer"></div><span style="font-size:13px;color:var(--text-secondary)">共 ' + data.length + ' 条</span></div>' +
 
-        '<div class="table-wrapper"><table id="components-table"><thead><tr><th data-sort="code" class="th-sortable">件号<span class="th-sort-icon"></span></th><th data-sort="name" class="th-sortable">名称<span class="th-sort-icon"></span></th><th data-sort="spec" class="th-sortable">规格<span class="th-sort-icon"></span></th><th data-sort="version" class="th-sortable">版本<span class="th-sort-icon"></span></th><th data-sort="parts" class="th-sortable">零件数<span class="th-sort-icon"></span></th><th data-sort="status" class="th-sortable">状态<span class="th-sort-icon"></span></th><th data-sort="updatedAt" class="th-sortable">更新时间<span class="th-sort-icon"></span></th><th>操作</th></tr></thead><tbody>' +
+        '<div class="table-wrapper"><table id="components-table"><thead><tr><th data-sort="code" class="th-sortable">件号<span class="th-sort-icon"></span></th><th data-sort="name" class="th-sortable">名称<span class="th-sort-icon"></span></th><th data-sort="spec" class="th-sortable">规格型号<span class="th-sort-icon"></span></th><th data-sort="version" class="th-sortable">版本<span class="th-sort-icon"></span></th><th data-sort="parts" class="th-sortable">零件数<span class="th-sort-icon"></span></th><th data-sort="status" class="th-sortable">状态<span class="th-sort-icon"></span></th><th data-sort="updatedAt" class="th-sortable">更新时间<span class="th-sort-icon"></span></th><th>操作</th></tr></thead><tbody>' +
 
         (data.length === 0 ? '<tr><td colspan="8" style="text-align:center;color:var(--text-light);padding:40px">暂无数据</td></tr>' :
 
@@ -373,7 +373,7 @@ var Components = {
 
         var toggle = hasChildren ? '<span class="tree-toggle" onclick="event.stopPropagation();var c=this.closest(\'.tree-item\').nextElementSibling;c.style.display=c.style.display===\'none\'?\'block\':\'none\';this.textContent=this.textContent===\'▶\'?\'▼\':\'▶\'">▶</span> ' : '';
 
-        html += '<div class="tree-item" style="display:flex;align-items:center;padding:8px 10px;border-bottom:1px solid #e8e8e8;margin-left:' + indent + 'px"><span style="width:50px;flex-shrink:0">' + depth + '</span><span style="width:80px;flex-shrink:0">' + toggle + icon + ' ' + label + '</span><span style="flex:1">' + info.code + '</span><span style="flex:1">' + info.name + '</span><span style="flex:1">' + (info.spec || '-') + '</span><span style="width:60px;text-align:center">' + (info.version||'A') + '</span><span style="width:60px;text-align:center">' + UI.statusTag(info.status) + '</span><span style="width:60px;text-align:right">' + p.quantity + '</span></div>';
+        html += '<div class="tree-item" style="cursor:pointer;display:flex;align-items:center;padding:8px 10px;border-bottom:1px solid #e8e8e8;margin-left:' + indent + 'px" onclick="Components._openChildDetail(\'' + type + '\',\'' + refId + '\',\'' + comp.id + '\')"><span style="width:50px;flex-shrink:0">' + depth + '</span><span style="width:80px;flex-shrink:0">' + toggle + icon + ' ' + label + '</span><span style="flex:1">' + info.code + '</span><span style="flex:1">' + info.name + '</span><span style="flex:1">' + (info.spec || '-') + '</span><span style="width:60px;text-align:center">' + (info.version||'A') + '</span><span style="width:60px;text-align:center">' + UI.statusTag(info.status) + '</span><span style="width:60px;text-align:right">' + p.quantity + '</span></div>';
 
         if (hasChildren) {
 
@@ -417,7 +417,7 @@ var Components = {
 
         var label = type === 'part' ? '零件' : '部件';
 
-        tableRows.push({ level: level, icon: icon, label: label, code: info.code, name: info.name, spec: info.spec||'-', version: info.version||'A', status: info.status, quantity: p.quantity });
+        tableRows.push({ level: level, icon: icon, label: label, code: info.code, name: info.name, spec: info.spec||'-', version: info.version||'A', status: info.status, quantity: p.quantity, childType: type, refId: refId });
 
         if (type === 'component' && info.parts && info.parts.length > 0) {
 
@@ -431,7 +431,7 @@ var Components = {
 
     flattenTree(comp.parts, 1);
 
-    var tableHtml = tableRows.map(function(r) { return '<tr><td style="padding-left:' + (r.level * 15) + 'px">' + r.level + '</td><td>' + r.icon + ' ' + r.label + '</td><td>' + r.code + '</td><td>' + r.name + '</td><td>' + r.spec + '</td><td>' + r.version + '</td><td>' + UI.statusTag(r.status) + '</td><td>' + r.quantity + '</td></tr>'; }).join('');
+    var tableHtml = tableRows.map(function(r) { return '<tr style="cursor:pointer" onclick="Components._openChildDetail(\'' + r.childType + '\',\'' + r.refId + '\',\'' + comp.id + '\')"><td style="padding-left:' + (r.level * 15) + 'px">' + r.level + '</td><td>' + r.icon + ' ' + r.label + '</td><td>' + r.code + '</td><td>' + r.name + '</td><td>' + r.spec + '</td><td>' + r.version + '</td><td>' + UI.statusTag(r.status) + '</td><td>' + r.quantity + '</td></tr>'; }).join('');
 
     var compRevs = (comp.revisions || []).slice().reverse();
 
@@ -457,23 +457,31 @@ var Components = {
 
       }).join('') + '</div>' : '<div style="padding:16px;text-align:center;color:var(--text-light);background:#fafafa;border-radius:4px">暂无修订记录</div>');
 
+    // 加载自定义字段并渲染详情
+    _loadCFDefs().then(function(cfDefs) {
+      var cfValues = comp.customFields || {};
+      var cfHtml = _renderCFViewHtml(cfValues, cfDefs, 'component');
+
     UI.modal('部件详情 - ' + comp.name,
 
-      '<div class="bom-info-grid" style="margin-bottom:20px"><div class="bom-info-item"><div class="label">件号</div><div class="value">' + _esc(comp.code) + '</div></div><div class="bom-info-item"><div class="label">版本</div><div class="value">' + (comp.version||'A') + '</div></div><div class="bom-info-item"><div class="label">状态</div><div class="value">' + UI.statusTag(comp.status) + '</div></div></div>' +
+      '<div class="form-row"><div class="form-group"><label>件号</label><input type="text" value="' + _esc(comp.code) + '" readonly></div><div class="form-group"><label>名称</label><input type="text" value="' + _esc(comp.name) + '" readonly></div></div>' +
+      '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" value="' + _esc(comp.spec||'') + '" readonly></div><div class="form-group"><label>版本</label><input type="text" value="' + (comp.version||'A') + '" readonly></div></div>' +
+      '<div class="form-row"><div class="form-group"><label>状态</label>' + UI.statusTag(comp.status) + '</div><div class="form-group"><label>备注</label><input type="text" value="' + _esc(comp.remark||'') + '" readonly></div></div>' +
+      cfHtml +
 
       '<h4 style="margin-bottom:12px">子项列表 (' + (comp.parts||[]).length + '种)</h4>' +
 
       '<div class="tabs" id="comp-tabs"><div class="tab active" data-t="tree">🌲 树形视图</div><div class="tab" data-t="table">📊 表格视图</div><div class="tab" data-t="attachment">📎 附件</div></div>' +
 
-      '<div id="comp-tree-view"><div class="tree-view" style="max-height:400px;overflow-y:auto;color:#333"><div style="display:grid;grid-template-columns:50px 80px 1fr 1fr 1fr 60px 60px 60px;padding:8px 10px;background:#fafafa;font-weight:600;border-bottom:1px solid #e8e8e8"><span>层级</span><span>类型</span><span>件号</span><span>名称</span><span>规格</span><span>版本</span><span>状态</span><span>用量</span></div>' + buildTree(comp.parts, 1, 6) + '</div></div>' +
+      '<div id="comp-tree-view"><div class="tree-view" style="max-height:400px;overflow-y:auto;color:#333"><div style="display:grid;grid-template-columns:50px 80px 1fr 1fr 1fr 60px 60px 60px;padding:8px 10px;background:#fafafa;font-weight:600;border-bottom:1px solid #e8e8e8"><span>层级</span><span>类型</span><span>件号</span><span>名称</span><span>规格型号</span><span>版本</span><span>状态</span><span>用量</span></div>' + buildTree(comp.parts, 1, 6) + '</div></div>' +
 
-      '<div id="comp-table-view" style="display:none"><div class="table-wrapper" style="max-height:400px;overflow-y:auto;color:#333"><table><thead><tr><th style="width:50px;font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">层级</th><th style="width:80px;font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">类型</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">件号</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">名称</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">规格</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">版本</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">状态</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">用量</th></tr></thead><tbody>' + (tableHtml || '<tr><td colspan="8" style="text-align:center;color:#333">暂无数据</td></tr>') + '</tbody></table></div></div>' +
+      '<div id="comp-table-view" style="display:none"><div class="table-wrapper" style="max-height:400px;overflow-y:auto;color:#333"><table><thead><tr><th style="width:50px;font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">层级</th><th style="width:80px;font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">类型</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">件号</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">名称</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">规格型号</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">版本</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">状态</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">用量</th></tr></thead><tbody>' + (tableHtml || '<tr><td colspan="8" style="text-align:center;color:#333">暂无数据</td></tr>') + '</tbody></table></div></div>' +
 
       '<div id="comp-attachment-view" style="display:none"><div class="attachment-view" style="padding:16px;background:#f9f9f9;border-radius:4px;margin-top:8px"><div class="form-row"><div class="form-group"><label>源文件</label><input type="text" value="' + _esc(comp.sourceFile||'') + '" readonly>' + (comp.sourceFile_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (comp.sourceFile_data||'') + '\',\'' + _esc(comp.sourceFile||'附件') + '\')">⬇ 下载</button>' : '') + '</div><div class="form-group"><label>图纸</label><input type="text" value="' + _esc(comp.drawing||'') + '" readonly>' + (comp.drawing_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (comp.drawing_data||'') + '\',\'' + _esc(comp.drawing||'附件') + '\')">⬇ 下载</button>' : '') + '</div></div><div class="form-row"><div class="form-group"><label>STP</label><input type="text" value="' + _esc(comp.stp||'') + '" readonly>' + (comp.stp_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (comp.stp_data||'') + '\',\'' + _esc(comp.stp||'附件') + '\')">⬇ 下载</button>' : '') + '</div><div class="form-group"><label>PDF</label><input type="text" value="' + _esc(comp.pdf||'') + '" readonly>' + (comp.pdf_data ? '<button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (comp.pdf_data||'') + '\',\'' + _esc(comp.pdf||'附件') + '\')">⬇ 下载</button>' : '') + '</div></div></div></div>' +
 
       revHtml,
 
-      { large: true });
+      { large: true, footer: '<button class="btn-primary" id="btn-comp-detail-close" onclick="UI.closeModal()">关闭</button>' });
 
     document.querySelectorAll('#comp-tabs .tab').forEach(function(t) {
 
@@ -495,6 +503,41 @@ var Components = {
 
     });
 
+    }); // end _loadCFDefs.then
+
+  },
+
+  // 从部件详情打开子项详情
+  _openChildDetail: function(childType, refId, parentCompId) {
+    window._compDetailReturnTo = parentCompId;
+    if (childType === 'part') {
+      Parts._viewPart(refId);
+    } else {
+      Components._viewComp(refId);
+    }
+    // 在模态框 footer 中添加"返回"按钮，与"关闭"并排
+    setTimeout(function() {
+      var footer = document.querySelector('#modal-box .modal-footer');
+      if (!footer) return;
+      var btn = document.createElement('button');
+      btn.className = 'btn-outline';
+      btn.innerHTML = '← 返回部件详情';
+      btn.onclick = function() {
+        var pid = window._compDetailReturnTo;
+        window._compDetailReturnTo = null;
+        UI.closeModal();
+        setTimeout(function() {
+          Components._viewComp(pid);
+        }, 150);
+      };
+      // 插入到"关闭"按钮之前
+      var closeBtn = footer.querySelector('.btn-primary');
+      if (closeBtn) {
+        footer.insertBefore(btn, closeBtn);
+      } else {
+        footer.insertBefore(btn, footer.firstChild);
+      }
+    }, 100);
   },
 
 
@@ -529,7 +572,7 @@ var Components = {
 
       '<div class="form-row"><div class="form-group"><label>部件件号 <span class="required">*</span></label><input type="text" id="fc-code" value="' + _esc(comp ? comp.code : '') + '"' + ro + '></div><div class="form-group"><label>部件名称 <span class="required">*</span></label><input type="text" id="fc-name" value="' + _esc(comp ? comp.name : '') + '"' + ro + '></div></div>' +
 
-      '<div class="form-group"><label>规格</label><input type="text" id="fc-spec" value="' + _esc(comp ? comp.spec||'' : '') + '"' + ro + '></div>' +
+      '<div class="form-group"><label>规格型号</label><input type="text" id="fc-spec" value="' + _esc(comp ? comp.spec||'' : '') + '"' + ro + '></div>' +
 
       '<div class="form-group"><label>状态</label><select id="fc-st"' + roExceptStatus + '><option value="draft"' + (!comp || comp.status === 'draft' ? ' selected' : '') + '>草稿</option><option value="frozen"' + (comp && comp.status === 'frozen' ? ' selected' : '') + '>冻结</option><option value="released"' + (comp && comp.status === 'released' ? ' selected' : '') + '>发布</option><option value="obsolete"' + (comp && comp.status === 'obsolete' ? ' selected' : '') + '>作废</option></select></div>' +
 
@@ -538,7 +581,7 @@ var Components = {
       '<div class="form-row"><div class="form-group"><label>STP</label>' + (comp && comp.stp_data ? '<div class="file-preview"><span class="file-name">' + _esc(comp.stp || '') + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (comp.stp_data||'') + '\',\'' + _esc(comp.stp||'附件') + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Components._deleteCompAttachment(this,\'stp\')">删除</button></div>' : '<div class="file-preview"><span class="file-name empty">未上传</span></div>') + '<input type="file" id="fc-stp" accept="*/*" onchange="Components._onCompFileChange(this,\'fc-stp\')"' + ro + '></div><div class="form-group"><label>PDF</label>' + (comp && comp.pdf_data ? '<div class="file-preview"><span class="file-name">' + _esc(comp.pdf || '') + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (comp.pdf_data||'') + '\',\'' + _esc(comp.pdf||'附件') + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Components._deleteCompAttachment(this,\'pdf\')">删除</button></div>' : '<div class="file-preview"><span class="file-name empty">未上传</span></div>') + '<input type="file" id="fc-pdf" accept="*/*" onchange="Components._onCompFileChange(this,\'fc-pdf\')"' + ro + '></div></div>' +
 
       '<div class="form-group full"><label>备注</label><textarea id="fc-rem"' + ro + '>' + _esc(comp ? comp.remark||'' : '') + '</textarea></div>' +
-
+      '<div id="cf-comp-edit-area"></div>' +
       '<h4 style="margin:8px 0 12px">子项列表</h4><div id="child-items-container">' + Components._renderChildItems(comp) + '</div>' + (canE ? '<button class="btn-outline btn-sm" id="btn-add-child">＋ 添加子项</button>' : '<div style="color:#faad14;font-size:12px;margin-top:8px">⚠️ 当前状态锁定，子项不可修改</div>') +
 
       (isNotDraft ? '<div style="margin-top:10px;color:#faad14;font-size:12px">⚠️ 当前状态为"' + (comp.status === 'frozen' ? '冻结' : comp.status === 'released' ? '发布' : '作废') + '"，字段已锁定。' + (isFrozen ? '管理员和工程师可修改状态。' : '仅管理员可修改状态。') + '</div>' : ''),
@@ -550,6 +593,14 @@ var Components = {
     window._editCompData = JSON.parse(JSON.stringify(comp && comp.parts ? comp.parts : []));
 
     document.getElementById('btn-add-child').onclick = function() { Components._showChildSelector(id); };
+
+    // 加载自定义字段编辑区
+    _loadCFDefs().then(function(cfDefs) {
+      var cfArea = document.getElementById('cf-comp-edit-area');
+      if (!cfArea) return;
+      var cfValues = comp ? (comp.customFields || {}) : {};
+      cfArea.innerHTML = _renderCFEditHtml(cfValues, cfDefs, 'component', ro);
+    });
 
     document.getElementById('btn-sc').onclick = function() {
 
@@ -693,13 +744,28 @@ var Components = {
 
           }
 
-          Store.update('components', id, data); Store.addLog('编辑部件', '修改部件 ' + code); UI.toast('部件更新成功', 'success');
+          Store.update('components', id, data); Store.addLog('编辑部件', '修改部件 ' + code);
+          // 保存自定义字段值
+          var cfDefsForSave = Store.getAll('custom_field_defs');
+          var cfVals = _collectCFValues(cfDefsForSave, 'component');
+          Store.update('components', id, { customFields: cfVals }, { skipSync: true });
+          _saveCFValues('component', id, cfVals, cfDefsForSave);
+          UI.toast('部件更新成功', 'success');
 
         } else {
 
           data.revisions = [];
 
-          Store.add('components', data); Store.addLog('新增部件', '新增部件 ' + code + ' - ' + name); UI.toast('部件新增成功', 'success');
+          Store.add('components', data); Store.addLog('新增部件', '新增部件 ' + code + ' - ' + name);
+          // 新增部件后保存自定义字段值
+          var cfDefsForSave2 = Store.getAll('custom_field_defs');
+          var cfVals2 = _collectCFValues(cfDefsForSave2, 'component');
+          if (Object.keys(cfVals2).length > 0) {
+            data.customFields = cfVals2;
+            Store.update('components', data.id, { customFields: cfVals2 }, { skipSync: true });
+            _saveCFValues('component', data.id, cfVals2, cfDefsForSave2);
+          }
+          UI.toast('部件新增成功', 'success');
 
         }
 

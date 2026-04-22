@@ -176,7 +176,19 @@ const API = {
 
   async deleteDict(dictType, id) { return this._fetch('DELETE', '/dict/' + dictType + '/' + id); },
 
-
+  // Custom Fields
+  async getCustomFieldDefinitions(appliesTo) {
+    var path = '/custom-fields/definitions/';
+    if (appliesTo) path += '?applies_to=' + appliesTo;
+    return this._fetch('GET', path);
+  },
+  async createCustomFieldDefinition(data) { return this._fetch('POST', '/custom-fields/definitions/', data); },
+  async updateCustomFieldDefinition(id, data) { return this._fetch('PUT', '/custom-fields/definitions/' + id, data); },
+  async deleteCustomFieldDefinition(id) { return this._fetch('DELETE', '/custom-fields/definitions/' + id); },
+  async reorderCustomFieldDefinitions(items) { return this._fetch('PUT', '/custom-fields/definitions/reorder', { items: items }); },
+  async getCustomFieldValues(entityType, entityId) { return this._fetch('GET', '/custom-fields/values/' + entityType + '/' + entityId); },
+  async setCustomFieldValues(entityType, entityId, values) { return this._fetch('PUT', '/custom-fields/values/' + entityType + '/' + entityId, { values: values }); },
+  async resetBusinessData() { return this._fetch('POST', '/custom-fields/reset-data'); },
 
   // 全量同步（手动）
 

@@ -206,3 +206,57 @@ class BOMCompareResponse(BaseSchema):
     right_assembly: Dict[str, Any]
     comparison: List[BOMCompareNode]
     summary: Dict[str, int]
+
+
+# ===== 自定义字段 Schema =====
+
+class CustomFieldDefinitionBase(BaseSchema):
+    name: str = Field(..., min_length=1, max_length=128)
+    field_key: str = Field(..., min_length=1, max_length=64, pattern=r'^[a-zA-Z][a-zA-Z0-9_]*$')
+    field_type: str = Field(..., pattern=r'^(text|number|select|multiselect)$')
+    options: Optional[List[str]] = None
+    is_required: bool = False
+    applies_to: str = Field(default='both', pattern=r'^(part|component|both)$')
+    sort_order: int = 0
+
+class CustomFieldDefinitionCreate(CustomFieldDefinitionBase):
+    pass
+
+class CustomFieldDefinitionUpdate(BaseSchema):
+    name: Optional[str] = None
+    field_type: Optional[str] = None
+    options: Optional[List[str]] = None
+    is_required: Optional[bool] = None
+    applies_to: Optional[str] = None
+    sort_order: Optional[int] = None
+
+class CustomFieldDefinitionResponse(CustomFieldDefinitionBase):
+    id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class CustomFieldValueItem(BaseSchema):
+    """单个字段的值"""
+    field_id: uuid.UUID
+    value: Optional[Any] = None  # 可以是 str / number / list[str]
+
+class CustomFieldValuesBatch(BaseSchema):
+    """批量设置字段值的请求"""
+    values: List[CustomFieldValueItem]
+
+class CustomFieldValueResponse(BaseSchema):
+    """字段值响应"""
+    field_id: uuid.UUID
+    field_key: Optional[str] = None
+    field_name: Optional[str] = None
+    field_type: Optional[str] = None
+    value: Optional[Any] = None
+
+
+class ReorderItem(BaseSchema):
+    id: uuid.UUID
+    sort_order: int
+
+class ReorderRequest(BaseSchema):
+    items: List[ReorderItem]

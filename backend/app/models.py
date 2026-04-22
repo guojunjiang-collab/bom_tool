@@ -108,3 +108,30 @@ class Dictionary(Base):
     value = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class CustomFieldDefinition(Base):
+    """自定义字段定义表"""
+    __tablename__ = "custom_field_definitions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(128), nullable=False)           # 字段显示名称
+    field_key = Column(String(64), unique=True, nullable=False)  # 字段标识键
+    field_type = Column(String(32), nullable=False)      # text / number / select / multiselect
+    options = Column(JSONB, default=[])                   # 单选/多选选项列表
+    is_required = Column(Integer, default=0)              # 是否必填（数据库是 BOOLEAN，用 Integer 兼容）
+    applies_to = Column(String(32), nullable=False, default='both')  # part / component / both
+    sort_order = Column(Integer, default=0)               # 排序序号
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class CustomFieldValue(Base):
+    """自定义字段值表"""
+    __tablename__ = "custom_field_values"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    field_id = Column(UUID(as_uuid=True), ForeignKey('custom_field_definitions.id', ondelete='CASCADE'), nullable=False)
+    entity_type = Column(String(32), nullable=False)  # 'part' 或 'component'
+    entity_id = Column(UUID(as_uuid=True), nullable=False)
+    value_text = Column(Text, nullable=True)           # 文本/单选值
+    value_number = Column(Numeric(12, 4), nullable=True)  # 数字值
+    value_json = Column(JSONB, nullable=True)           # 多选值数组
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

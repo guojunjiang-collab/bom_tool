@@ -283,3 +283,135 @@ def delete_dictionary(db, dict_id):
         db.delete(db_dict)
         db.commit()
     return db_dict
+
+# ===== Custom Field Definition CRUD =====
+
+def get_custom_field_definitions(db, applies_to=None):
+    q = db.query(models.CustomFieldDefinition)
+    if applies_to and applies_to != 'all':
+        q = q.filter((models.CustomFieldDefinition.applies_to == applies_to) | (models.CustomFieldDefinition.applies_to == 'both'))
+    return q.order_by(models.CustomFieldDefinition.sort_order, models.CustomFieldDefinition.created_at).all()
+
+def get_custom_field_definition(db, field_id):
+    return db.query(models.CustomFieldDefinition).filter(models.CustomFieldDefinition.id == field_id).first()
+
+def get_custom_field_definition_by_key(db, field_key):
+    return db.query(models.CustomFieldDefinition).filter(models.CustomFieldDefinition.field_key == field_key).first()
+
+def create_custom_field_definition(db, field_def):
+    db_field = models.CustomFieldDefinition(
+        name=field_def.name,
+        field_key=field_def.field_key,
+        field_type=field_def.field_type,
+        options=field_def.options or [],
+        is_required=bool(field_def.is_required),
+        applies_to=field_def.applies_to,
+        sort_order=field_def.sort_order
+    )
+    db.add(db_field)
+    db.commit()
+    db.refresh(db_field)
+    return db_field
+
+def update_custom_field_definition(db, field_id, field_update):
+    db_field = get_custom_field_definition(db, field_id)
+    if not db_field:
+        return None
+    update_data = field_update.model_dump(exclude_unset=True)
+    if 'is_required' in update_data:
+        update_data['is_required'] = bool(update_data['is_required'])
+    for field, value in update_data.items():
+        setattr(db_field, field, value)
+    from datetime import datetime
+    db_field.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(db_field)
+    return db_field
+
+def delete_custom_field_definition(db, field_id):
+    db_field = get_custom_field_definition(db, field_id)
+    if db_field:
+        db.delete(db_field)
+        db.commit()
+    return db_field
+
+def reorder_custom_field_definitions(db, items):
+    for item in items:
+        db_field = db.query(models.CustomFieldDefinition).filter(models.CustomFieldDefinition.id == item.id).first()
+        if db_field:
+            db_field.sort_order = item.sort_order
+    db.commit()
+    return True
+
+def reset_business_data(db):
+    """清除业务数据，保留用户和系统设置（字典、自定义字段定义）"""
+    # 按依赖顺序删除：值 → BOM → 附件 → 零件/部件 → 日志
+    db.query(models.CustomFieldValue).delete()
+    db.query(models.BOMItem).delete()
+    db.query(models.Attachment).delete()
+    db.query(models.Part).delete()
+    db.query(models.Assembly).delete()
+    db.query(models.OperationLog).delete()
+    db.commit()
+    return True
+
+# ===== Custom Field Value CRUD =====
+
+def get_custom_field_values(db, entity_type, entity_id):
+    """获取实体的所有自定义字段值，联合字段定义返回"""
+    from sqlalchemy.orm import aliased
+    CFD = models.CustomFieldDefinition
+    CFV = models.CustomFieldValue
+    results = db.query(CFV, CFD).join(CFD, CFV.field_id == CFD.id).filter(
+        CFV.entity_type == entity_type,
+        CFV.entity_id == entity_id
+    ).all()
+    return results
+
+def set_custom_field_values(db, entity_type, entity_id, values):
+    """批量设置实体的自定义字段值"""
+    for item in values:
+        field_def = get_custom_field_definition(db, item.field_id)
+        if not field_def:
+            continue
+        # 查找已有值
+        existing = db.query(models.CustomFieldValue).filter(
+            models.CustomFieldValue.field_id == item.field_id,
+            models.CustomFieldValue.entity_type == entity_type,
+            models.CustomFieldValue.entity_id == entity_id
+        ).first()
+
+        # 根据字段类型确定存储列
+        value_text = None
+        value_number = None
+        value_json = None
+        if field_def.field_type == 'text':
+            value_text = str(item.value) if item.value is not None else None
+        elif field_def.field_type == 'number':
+            try:
+                value_number = float(item.value) if item.value is not None else None
+            except (ValueError, TypeError):
+                value_number = None
+        elif field_def.field_type == 'select':
+            value_text = str(item.value) if item.value is not None else None
+        elif field_def.field_type == 'multiselect':
+            value_json = item.value if isinstance(item.value, list) else None
+
+        if existing:
+            existing.value_text = value_text
+            existing.value_number = value_number
+            existing.value_json = value_json
+            from datetime import datetime
+            existing.updated_at = datetime.utcnow()
+        else:
+            new_val = models.CustomFieldValue(
+                field_id=item.field_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                value_text=value_text,
+                value_number=value_number,
+                value_json=value_json
+            )
+            db.add(new_val)
+    db.commit()
+    return True
