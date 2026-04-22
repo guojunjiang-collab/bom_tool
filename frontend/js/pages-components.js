@@ -482,30 +482,34 @@ var Components = {
       revHtml,
 
       { large: true, footer: '<button class="btn-primary" id="btn-comp-detail-close" onclick="UI.closeModal()">关闭</button>',
-        afterRender: function() {
+afterRender: function() {
           // 加载附件列表（查看时）
           var attContent = document.getElementById('comp-attachment-content');
           if (attContent && comp.id) {
             API.listAttachments('component', comp.id).then(function(attachments) {
-              if (attachments && attachments.length > 0) {
-                var html = '<div class="form-row">';
-                var fileLabels = { source_file: '源文件', drawing: '图纸', stp: 'STP', pdf: 'PDF' };
-                attachments.forEach(function(att) {
-                  html += '<div class="form-group"><label>' + (fileLabels[att.file_type] || att.file_type) + '</label>';
-                  html += '<input type="text" value="' + _esc(att.file_name || '(无名称)') + '" readonly>';
-                  html += '<button type="button" class="btn-link" onclick="Components._downloadAttachment(\'' + att.id + '\')">⬇ 下载</button></div>';
-                });
+              attachments = attachments || [];
+              var html = '';
+              var fileTypes = ['source_file', 'drawing', 'stp', 'pdf'];
+              var fileLabels = { source_file: '源文件', drawing: '图纸', stp: 'STP', pdf: 'PDF' };
+              fileTypes.forEach(function(ft) {
+                var att = attachments.find(function(a) { return a.file_type === ft; });
+                html += '<div style="display:flex;align-items:center;margin-bottom:8px;font-size:13px">';
+                html += '<span style="width:60px;flex-shrink:0">' + fileLabels[ft] + '</span>';
+                if (att) {
+                  html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _esc(att.file_name || '') + '">' + _esc(att.file_name || '(无名称)') + '</span>';
+                  html += '<button type="button" class="btn-link" onclick="Components._downloadAttachment(\'' + att.id + '\')">下载</button>';
+                } else {
+                  html += '<span style="flex:1;color:#999">未上传</span>';
+                }
                 html += '</div>';
-                attContent.innerHTML = html;
-              } else {
-                attContent.innerHTML = '<div style="text-align:center;color:#999;padding:20px">暂无附件</div>';
-              }
+              });
+              attContent.innerHTML = html;
             }).catch(function(err) {
               console.error('加载附件失败', err);
               attContent.innerHTML = '<div style="text-align:center;color:#999;padding:20px">加载附件失败</div>';
             });
           }
-        }
+}
       });
 
     document.querySelectorAll('#comp-tabs .tab').forEach(function(t) {
@@ -1481,17 +1485,18 @@ var Components = {
       var fileLabels = { source_file: '源文件', drawing: '图纸', stp: 'STP', pdf: 'PDF' };
       fileTypes.forEach(function(ft) {
         var att = attachments.find(function(a) { return a.file_type === ft; });
-        html += '<div class="form-row"><div class="form-group"><label style="width:60px">' + fileLabels[ft] + '</label>';
+        html += '<div style="display:flex;align-items:center;margin-bottom:8px;font-size:13px">';
+        html += '<span style="width:60px;flex-shrink:0">' + fileLabels[ft] + '</span>';
         if (att) {
-          html += '<span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px" title="' + _esc(att.file_name || '') + '">' + _esc(att.file_name || '(无名称)') + '</span>';
+          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:50px" title="' + _esc(att.file_name || '') + '">' + _esc(att.file_name || '(无名称)') + '</span>';
           html += '<button type="button" class="btn-link" onclick="Components._downloadAttachment(\'' + att.id + '\')">下载</button>';
           html += '<button type="button" class="btn-link" style="color:#ff4d4f" onclick="Components._deleteAttachment(\'' + att.id + '\',\'' + entityType + '\',\'' + entityId + '\',\'' + ft + '\')">删除</button>';
         } else {
-          html += '<span style="flex:1;font-size:12px;color:#999">未上传</span>';
+          html += '<span style="flex:1;color:#999">未上传</span>';
           html += '<input type="file" id="comp-att-' + ft + '" style="display:none" onchange="Components._onAttachmentChange(\'' + entityType + '\',\'' + entityId + '\',\'' + ft + '\',this)">';
           html += '<button type="button" class="btn-link" onclick="document.getElementById(\'comp-att-' + ft + '\').click()">上传</button>';
         }
-        html += '</div></div>';
+        html += '</div>';
       });
       container.innerHTML = html;
     }).catch(function(err) {

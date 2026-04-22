@@ -395,19 +395,23 @@ var Parts = {
             var attView = document.getElementById('part-attachments-view');
             if (attView && part.id) {
               API.listAttachments('part', part.id).then(function(attachments) {
-                if (attachments && attachments.length > 0) {
-                  var html = '<h4 style="margin:20px 0 12px">📎 附件 (' + attachments.length + ')</h4><div style="display:flex;flex-direction:column;gap:8px">';
-                  var fileLabels = { source_file: '源文件', drawing: '图纸', stp: 'STP', pdf: 'PDF' };
-                  attachments.forEach(function(att) {
-                    html += '<div style="display:flex;align-items:center;gap:8px;padding:8px;background:#fafafa;border-radius:4px">';
-                    html += '<span style="width:60px;font-size:13px">' + (fileLabels[att.file_type] || att.file_type) + '</span>';
-                    html += '<span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px" title="' + _esc(att.file_name || '') + '">' + _esc(att.file_name || '(无名称)') + '</span>';
+                attachments = attachments || [];
+                var html = '<h4 style="margin:20px 0 12px">📎 附件</h4>';
+                var fileTypes = ['source_file', 'drawing', 'stp', 'pdf'];
+                var fileLabels = { source_file: '源文件', drawing: '图纸', stp: 'STP', pdf: 'PDF' };
+                fileTypes.forEach(function(ft) {
+                  var att = attachments.find(function(a) { return a.file_type === ft; });
+                  html += '<div style="display:flex;align-items:center;margin-bottom:8px;font-size:13px">';
+                  html += '<span style="width:60px;flex-shrink:0">' + fileLabels[ft] + '</span>';
+                  if (att) {
+                    html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _esc(att.file_name || '') + '">' + _esc(att.file_name || '(无名称)') + '</span>';
                     html += '<button type="button" class="btn-link" onclick="Parts._downloadAttachment(\'' + att.id + '\')">下载</button>';
-                    html += '</div>';
-                  });
+                  } else {
+                    html += '<span style="flex:1;color:#999">未上传</span>';
+                  }
                   html += '</div>';
-                  attView.innerHTML = html;
-                }
+                });
+                attView.innerHTML = html;
               }).catch(function(err) {
                 console.error('加载附件失败', err);
               });
@@ -437,17 +441,18 @@ var Parts = {
       var fileLabels = { source_file: '源文件', drawing: '图纸', stp: 'STP', pdf: 'PDF' };
       fileTypes.forEach(function(ft) {
         var att = attachments.find(function(a) { return a.file_type === ft; });
-        html += '<div class="form-row"><div class="form-group"><label style="width:60px">' + fileLabels[ft] + '</label>';
+        html += '<div style="display:flex;align-items:center;margin-bottom:8px;font-size:13px">';
+        html += '<span style="width:60px;flex-shrink:0">' + fileLabels[ft] + '</span>';
         if (att) {
-          html += '<span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px" title="' + _esc(att.file_name || '') + '">' + _esc(att.file_name || '(无名称)') + '</span>';
+          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:50px" title="' + _esc(att.file_name || '') + '">' + _esc(att.file_name || '(无名称)') + '</span>';
           html += '<button type="button" class="btn-link" onclick="Parts._downloadAttachment(\'' + att.id + '\')">下载</button>';
           html += '<button type="button" class="btn-link" style="color:#ff4d4f" onclick="Parts._deleteAttachment(\'' + att.id + '\',\'' + entityType + '\',\'' + entityId + '\',\'' + ft + '\')">删除</button>';
         } else {
-          html += '<span style="flex:1;font-size:12px;color:#999">未上传</span>';
+          html += '<span style="flex:1;color:#999">未上传</span>';
           html += '<input type="file" id="att-' + ft + '" style="display:none" onchange="Parts._onAttachmentChange(\'' + entityType + '\',\'' + entityId + '\',\'' + ft + '\',this)">';
           html += '<button type="button" class="btn-link" onclick="document.getElementById(\'att-' + ft + '\').click()">上传</button>';
         }
-        html += '</div></div>';
+        html += '</div>';
       });
       container.innerHTML = html;
     }).catch(function(err) {
