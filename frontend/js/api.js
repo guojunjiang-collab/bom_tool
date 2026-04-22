@@ -192,6 +192,27 @@ const API = {
   async setCustomFieldValues(entityType, entityId, values) { return this._fetch('PUT', '/custom-fields/values/' + entityType + '/' + entityId, { values: values }); },
   async resetBusinessData() { return this._fetch('POST', '/custom-fields/reset-data'); },
 
+  // Attachments
+  async listAttachments(entityType, entityId) {
+    var path = '/attachments/?entity_type=' + entityType + '&entity_id=' + entityId;
+    return this._fetch('GET', path);
+  },
+  async uploadAttachment(entityType, entityId, fileType, fileName, fileData) {
+    return this._fetch('POST', '/attachments/', {
+      entity_type: entityType,
+      entity_id: entityId,
+      file_type: fileType,
+      file_name: fileName,
+      file_data: fileData
+    });
+  },
+  async getAttachment(attachmentId) {
+    return this._fetch('GET', '/attachments/' + attachmentId);
+  },
+  async deleteAttachment(entityType, entityId, fileType) {
+    return this._fetch('DELETE', '/attachments/by-entity?entity_type=' + entityType + '&entity_id=' + entityId + '&file_type=' + fileType);
+  },
+
   // 全量同步（手动）
 
   async syncAll(parts, assemblies) {

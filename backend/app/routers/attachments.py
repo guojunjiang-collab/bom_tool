@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 import uuid
 
@@ -38,15 +38,33 @@ async def list_attachments(
 
 @router.post("/")
 async def upload_attachment(
-    entity_type: str,
-    entity_id: uuid.UUID,
-    file_type: str,
-    file_name: str = None,
-    file_data: str = None,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(["admin", "engineer"]))
 ):
-    """上传/更新附件"""
+    # 支持 JSON body 和 Form Data
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        body = await request.json()
+    else:
+        form = await request.form()
+        body = dict(form)
+
+    entity_type = body.get("entity_type")
+    entity_id = body.get("entity_id")
+    file_type = body.get("file_type")
+    file_name = body.get("file_name")
+    file_data = body.get("file_data")
+
+    if not entity_type or not entity_id or not file_type:
+        raise HTTPException(status_code=400, detail="缺少必要参数 entity_type, entity_id, file_type")
+
+    # 转换 entity_id 为 UUID
+    try:
+        entity_id = uuid.UUID(entity_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的 entity_id")
+
     if entity_type not in ('part', 'component'):
         raise HTTPException(status_code=400, detail="无效的 entity_type")
     if file_type not in ('source_file', 'drawing', 'stp', 'pdf'):
