@@ -97,3 +97,20 @@ async def remove_assembly_part(assembly_id: uuid.UUID, item_id: uuid.UUID, reque
     ip = request.client.host if request.client else None
     crud.create_log(db, current_user.id, current_user.username, "删除子项", "assembly_part", str(assembly_id), f"子项ID:{item_id}", ip)
     return {"message": "子项已删除"}
+
+@router.put("/{assembly_id}/parts/{item_id}")
+async def update_assembly_part(assembly_id: uuid.UUID, item_id: uuid.UUID, item_update: schemas.BOMItemUpdate, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin", "engineer"]))):
+    """更新部件的子项（数量等）"""
+    db_assembly = crud.get_assembly(db, assembly_id)
+    if not db_assembly:
+        raise HTTPException(status_code=404, detail="部件不存在")
+    db_item = crud.get_bom_item(db, item_id)
+    if not db_item:
+        raise HTTPException(status_code=404, detail="子项不存在")
+    if item_update.quantity is not None:
+        db_item.quantity = item_update.quantity
+    db.commit()
+    db.refresh(db_item)
+    ip = request.client.host if request.client else None
+    crud.create_log(db, current_user.id, current_user.username, "更新子项", "assembly_part", str(assembly_id), f"子项ID:{item_id}, 数量:{item_update.quantity}", ip)
+    return db_item

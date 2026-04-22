@@ -86,6 +86,9 @@ class BOMItemBase(BaseSchema):
 class BOMItemCreate(BOMItemBase):
     pass
 
+class BOMItemUpdate(BaseSchema):
+    quantity: Optional[float] = None
+
 class BOMItemResponse(BOMItemBase):
     id: uuid.UUID
     created_at: datetime

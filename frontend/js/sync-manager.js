@@ -390,11 +390,7 @@ const SyncManager = {
 
                   var updateData = Object.assign({}, converted, { id: converted.id });
 
-                  if (entity.key === 'components' && existing.parts) {
 
-                    updateData.parts = existing.parts; // 保留本地子项
-
-                  }
 
                   Store.update(entity.key, localId, updateData, { silent: true, skipSync: true });
 
@@ -518,27 +514,11 @@ const SyncManager = {
 
               });
 
-              // 合并：保留本地已有的子项，补充服务器独有的子项
+              // 替换：直接使用服务器子项，替换本地子项
 
-              var localParts = (comp.parts && comp.parts.length > 0) ? comp.parts : [];
+              console.log('[Sync.Supplement] comp=' + comp.id + ', serverParts=' + serverParts.length);
 
-              var merged = localParts.slice();
-
-              for (var si = 0; si < serverParts.length; si++) {
-
-                var sp = serverParts[si];
-
-                var spChildId = sp.partId || sp.componentId || '';
-
-                var exists = merged.some(function(p) { return (p.partId || p.componentId || '') === spChildId; });
-
-                if (!exists) merged.push(sp);
-
-              }
-
-              console.log('[Sync.Supplement] comp=' + comp.id + ', serverParts=' + serverParts.length + ', localParts=' + localParts.length + ', merged=' + merged.length);
-
-              Store.update('components', comp.id, { parts: merged }, { silent: true, skipSync: true });
+              Store.update('components', comp.id, { parts: serverParts }, { silent: true, skipSync: true });
 
             }
 

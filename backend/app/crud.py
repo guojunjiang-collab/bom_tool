@@ -236,6 +236,9 @@ def delete_bom_item(db, item_id):
         db.commit()
     return db_item
 
+def get_bom_item(db, item_id):
+    return db.query(models.BOMItem).filter(models.BOMItem.id == item_id).first()
+
 def create_log(db, user_id, username, action, target_type=None, target_id=None, detail=None, ip_address=None):
     db_log = models.OperationLog(
         user_id=user_id, username=username, action=action,

@@ -142,6 +142,8 @@ const API = {
 
   async addAssemblyPart(id, data) { return this._fetch('POST', '/assemblies/' + id + '/parts', data); },
 
+  async updateAssemblyPart(asmId, itemId, data) { return this._fetch('PUT', '/assemblies/' + asmId + '/parts/' + itemId, data); },
+
   async removeAssemblyPart(asmId, itemId) { return this._fetch('DELETE', '/assemblies/' + asmId + '/parts/' + itemId); },
 
 

@@ -235,20 +235,35 @@ _fieldMap: {
             }
             const childType = isComponent ? 'assembly' : 'part';
             localChildIds.add(childId);
-            if (!serverChildIds.has(childId)) {
-              console.log('[Sync.update.components] addAssemblyPart childId=' + childId + ' childType=' + childType);
-              await API.addAssemblyPart(resolvedId, { child_type: childType, child_id: childId, quantity: item.quantity || 1 }).catch(function(e) { console.warn('[Sync.update] addAssemblyPart failed:', e.message); });
-            } else {
-              console.log('[Sync.update.components] childId=' + childId + ' already exists, skip');
-            }
+            if (!serverChildIds.has(childId)) {
+
+              console.log('[Sync.update.components] addAssemblyPart childId=' + childId + ' childType=' + childType);
+
+              await API.addAssemblyPart(resolvedId, { child_type: childType, child_id: childId, quantity: item.quantity || 1 }).catch(function(e) { console.warn('[Sync.update] addAssemblyPart failed:', e.message); });
+
+            } else {
+
+              console.log('[Sync.update.components] childId=' + childId + ' exists, check quantity');
+
+              const serverItem = serverParts.find(sp => sp.child_id === childId);
+
+              if (serverItem && serverItem.quantity !== (item.quantity || 1)) {
+
+                console.log('[Sync.update.components] updating quantity: server=' + serverItem.quantity + ' local=' + item.quantity);
+
+                await API.updateAssemblyPart(resolvedId, serverItem.id, { quantity: item.quantity || 1 }).catch(function(e) { console.warn('[Sync.update] updateAssemblyPart failed:', e.message); });
+
+              }
+
+            }
           }
 
           // 2. 删除服务器有但本地没有的子项
           for (const sp of serverParts) {
-            if (!localChildIds.has(sp.child_id)) {
-              console.log('[Sync.update.components] remove childId=' + sp.child_id);
-              await API.removeAssemblyPart(resolvedId, sp.child_id).catch(function(e) { console.warn('[Sync.update] removeAssemblyPart failed:', e.message); });
-            }
+if (!localChildIds.has(sp.child_id)) {
+              console.log('[Sync.update.components] remove childId=' + sp.child_id + ' itemId=' + sp.id);
+              await API.removeAssemblyPart(resolvedId, sp.id).catch(function(e) { console.warn('[Sync.update] removeAssemblyPart failed:', e.message); });
+            }
           }
         } else {
           console.log('[Sync.update.components] no sub-items to sync (parts empty/undefined)');
