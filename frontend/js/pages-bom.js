@@ -437,10 +437,12 @@ var Bom = {
         ? '<span style="margin-right:6px;font-size:11px;padding:1px 5px;border-radius:3px;background:#e6f4ff;color:#1677ff;border:1px solid #91caff">部件</span>'
         : '<span style="margin-right:6px;font-size:11px;padding:1px 5px;border-radius:3px;background:#f6ffed;color:#52c41a;border:1px solid #b7eb8f">零件</span>';
       var html = '<div class="br-node" style="padding-left:'+indent+'px">';
+      var isComponent = (node.type === 'component' || node.type === 'assembly');
+      var openDetail = 'onclick="Bom.openParentDetail(\'' + node.id + '\',' + (isComponent ? 'true' : 'false') + ')"';
       html += '<div class="br-row" style="display:flex;align-items:center;padding:6px 4px;border-radius:4px;margin-bottom:2px;background:'+(isRoot?'#f0f7ff':'#fafafa')+';border-left:3px solid '+(isRoot?'var(--primary)':'#ddd')+'">' +
         toggle + '<span style="margin:0 6px 0 4px">'+levelLabel+'</span>' + nodeTypeTag +
-        '<span style="font-weight:'+(isRoot?'600':'400')+';margin-right:8px">'+(node.code||'-')+'</span>' +
-        '<span style="margin-right:10px;color:var(--text-secondary)">'+(node.name||'?')+'</span>' +
+        '<span '+openDetail+' style="cursor:pointer;font-weight:'+(isRoot?'600':'400')+';margin-right:8px;color:'+ (isRoot ? 'var(--primary)' : 'var(--text)') +'" title="查看详情">'+(node.code||'-')+'</span>' +
+        '<span '+openDetail+' style="cursor:pointer;margin-right:10px;color:var(--text-secondary)" title="查看详情">'+(node.name||'?')+'</span>' +
         (version ? '<span style="margin-right:8px;font-size:12px;color:var(--text-secondary)">' + version + '</span>' : '') +
         statusHtml + '</div>';
       if (hasChildren) {
@@ -451,5 +453,39 @@ var Bom = {
       html += '</div>';
       return html;
     }
+  },
+
+  // 点击反查树中的父项节点打开详情
+  openParentDetail: function(id, isComponent) {
+    console.log('Bom.openParentDetail called', id, isComponent);
+    if (!id) {
+        console.error("节点ID不存在");
+        return;
+    }
+    // 先关闭可能存在的弹窗
+    if (window.UI && window.UI.closeModal) { 
+        window.UI.closeModal(); 
+    }
+    // 延时调用，确保模态框关闭动画不影响新弹窗
+    setTimeout(function() {
+      try {
+        if (isComponent) {
+          if (window.Components && window.Components._viewComp) {
+            window.Components._viewComp(id);
+          } else {
+            console.error("Components对象或_viewComp方法未找到，请确保pages-components.js已加载");
+          }
+        } else {
+          if (window.Parts && window.Parts._viewPart) {
+            window.Parts._viewPart(id);
+          } else {
+            console.error("Parts对象或_viewPart方法未找到，请确保pages-parts.js已加载");
+          }
+        }
+      } catch(e) {
+        console.error('打开详情失败:', e);
+      }
+    }, 100);
   }
+
 };
