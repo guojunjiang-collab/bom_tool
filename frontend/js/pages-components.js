@@ -1504,11 +1504,12 @@ afterRender: function() {
     });
   },
 
-  // 附件上传（部件）
+// 附件上传（部件，异步不阻塞UI）
   _onAttachmentChange: function(entityType, entityId, fileType, input) {
     var file = input.files[0];
     if (!file) return;
     UI._fileToBase64(file, function(base64) {
+      // 不关闭modal，用户可继续操作或保存
       Store._uploadProgress = { percent: 0, fileName: file.name };
       Store._currentTask = { entity: 'attachment', op: 'upload', record: { code: file.name } };
       SyncPanel.updatePanel();
