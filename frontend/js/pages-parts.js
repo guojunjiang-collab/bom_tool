@@ -466,12 +466,25 @@ var Parts = {
     var file = input.files[0];
     if (!file) return;
     UI._fileToBase64(file, function(base64) {
-      API.uploadAttachment(entityType, entityId, fileType, file.name, base64).then(function() {
+      // 设置上传进度状态
+      Store._uploadProgress = { percent: 0, fileName: file.name };
+      Store._currentTask = { entity: 'attachment', op: 'upload', record: { code: file.name } };
+      SyncPanel.updatePanel();
+      API.uploadAttachment(entityType, entityId, fileType, file.name, base64, function(percent) {
+        Store._uploadProgress = { percent: percent, fileName: file.name };
+        SyncPanel.updatePanel();
+      }).then(function() {
+        Store._uploadProgress = null;
+        Store._currentTask = null;
         UI.toast('附件上传成功', 'success');
         Parts._loadAttachmentsForEdit(entityType, entityId, 'part-attachments-area');
+        SyncPanel.updatePanel();
       }).catch(function(err) {
+        Store._uploadProgress = null;
+        Store._currentTask = null;
         console.error('附件上传失败', err);
         UI.toast('附件上传失败: ' + (err.message || err), 'error');
+        SyncPanel.updatePanel();
       });
     });
   },

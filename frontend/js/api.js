@@ -197,7 +197,42 @@ const API = {
     var path = '/attachments/?entity_type=' + entityType + '&entity_id=' + entityId;
     return this._fetch('GET', path);
   },
-  async uploadAttachment(entityType, entityId, fileType, fileName, fileData) {
+  async uploadAttachment(entityType, entityId, fileType, fileName, fileData, onProgress) {
+    if (onProgress && typeof XMLHttpRequest !== 'undefined') {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            onProgress(percent);
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch {
+              resolve({});
+            }
+          } else {
+            reject({ message: 'Upload failed: ' + xhr.status });
+          }
+        };
+        xhr.onerror = () => reject({ message: 'Network error' });
+        const token = localStorage.getItem('bom_api_token');
+        xhr.open('POST', this._baseUrl + '/attachments/');
+        if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        const body = JSON.stringify({
+          entity_type: entityType,
+          entity_id: entityId,
+          file_type: fileType,
+          file_name: fileName,
+          file_data: fileData
+        });
+        xhr.send(body);
+      });
+    }
     return this._fetch('POST', '/attachments/', {
       entity_type: entityType,
       entity_id: entityId,
