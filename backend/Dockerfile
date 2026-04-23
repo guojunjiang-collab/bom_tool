@@ -1,8 +1,11 @@
 FROM python:3.12-slim
 WORKDIR /app
-RUN apt-get update && apt-get install -y libpq-dev gcc && rm -rf /var/lib/apt/lists/*
+RUN sed -i 's|deb.debian.org/d|mirrors.aliyun.com/d|g' /etc/apt/sources.list.d/debian.sources && \
+    sed -i 's|security.debian.org/d|mirrors.aliyun.com/d|g' /etc/apt/sources.list.d/debian.sources && \
+    apt-get update && apt-get install -y libpq-dev gcc && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
+    pip install --no-cache-dir -r requirements.txt
 COPY ./app ./app
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
