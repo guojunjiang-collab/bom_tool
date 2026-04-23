@@ -220,7 +220,7 @@ const API = {
         };
         xhr.onerror = () => reject({ message: 'Network error' });
         const token = localStorage.getItem('bom_api_token');
-        xhr.open('POST', this._base + '/attachments/');
+        xhr.open('POST', this._baseUrl + '/attachments/');
         if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
         xhr.setRequestHeader('Content-Type', 'application/json');
         const body = JSON.stringify({
