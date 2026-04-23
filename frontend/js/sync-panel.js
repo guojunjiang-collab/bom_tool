@@ -41,24 +41,44 @@ const SyncPanel = {
       badge.style.background = stats.pending > 0 ? '#1890ff' : '#999';
     }
     
-    // 显示/隐藏当前任务
-    const currentTaskEl = document.getElementById('sync-current-task');
-    const currentTask = Store._currentTask;
-    if (currentTask) {
-      currentTaskEl.style.display = 'block';
-      // 生成任务描述
-      const typeMap = { parts: '零件', components: '部件', users: '用户', bom_items: 'BOM项' };
-      const opMap = { add: '创建', update: '更新', delete: '删除' };
-      const entityName = typeMap[currentTask.entity] || currentTask.entity;
-      const opName = opMap[currentTask.op] || currentTask.op;
-      const desc = `${opName} ${entityName} · ${currentTask.record?.code || currentTask.record?.id || ''}`;
-      document.getElementById('sync-task-title').textContent = desc;
-      // 进度模拟：根据任务类型显示不同进度，实际应该从_execSync获取进度
-      document.getElementById('sync-task-progress').textContent = '上传中...';
-      document.getElementById('sync-progress-fill').style.width = '60%';
-    } else {
-      currentTaskEl.style.display = 'none';
-    }
+// 显示/隐藏当前任务
+
+    const currentTaskEl = document.getElementById('sync-current-task');
+
+    const currentTask = Store._currentTask;
+
+    const uploadProgress = Store._uploadProgress;
+
+    if (currentTask) {
+
+      currentTaskEl.style.display = 'block';
+
+      // 生成任务描述
+
+      var desc;
+
+      if (currentTask.entity === 'attachment') {
+        desc = '上传附件 · ' + (currentTask.record?.code || '文件');
+        var percent = uploadProgress ? uploadProgress.percent : 0;
+        document.getElementById('sync-task-title').textContent = desc;
+        document.getElementById('sync-task-progress').textContent = percent + '%';
+        document.getElementById('sync-progress-fill').style.width = percent + '%';
+      } else {
+        var typeMap = { parts: '零件', components: '部件', users: '用户', bom_items: 'BOM项' };
+        var opMap = { add: '创建', update: '更新', delete: '删除' };
+        var entityName = typeMap[currentTask.entity] || currentTask.entity;
+        var opName = opMap[currentTask.op] || currentTask.op;
+        desc = opName + ' ' + entityName + ' · ' + (currentTask.record?.code || currentTask.record?.id || '');
+        document.getElementById('sync-task-title').textContent = desc;
+        document.getElementById('sync-task-progress').textContent = '上传中...';
+        document.getElementById('sync-progress-fill').style.width = '60%';
+      }
+
+    } else {
+
+      currentTaskEl.style.display = 'none';
+
+    }
     
     // 更新队列列表
     this.renderQueueList(queue);

@@ -351,8 +351,20 @@ var Parts = {
     // 加载自定义字段
     _loadCFDefs().then(function(cfDefs) {
       var cfValues = part.customFields || {};
-      // 如果本地没有缓存，尝试从API加载
       var cfHtml = _renderCFViewHtml(cfValues, cfDefs, 'part');
+
+      // 修订记录HTML
+      var revHtml = '<h4 style="margin:20px 0 12px">📝 修订记录 (' + revs.length + ')</h4>';
+      revHtml += revs.length > 0 ? '<div class="log-list">' + revs.map(function(rev) {
+        var changesHtml = rev.changes.map(function(c) {
+          return '<span class="rev-change"><strong>' + _esc(c.field) + '</strong>：' +
+            '<span style="color:#ff4d4f;text-decoration:line-through">' + _esc(c.oldVal || '(空)') + '</span> → ' +
+            '<span style="color:#52c41a">' + _esc(c.newVal || '(空)') + '</span></span>';
+        }).join('&nbsp;&nbsp;');
+        return '<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:4px">' +
+          '<div><span class="log-time">' + UI.formatDate(rev.date) + '</span><span class="log-user">' + _esc(rev.author) + '</span></div>' +
+          '<div style="font-size:13px;line-height:1.6">' + changesHtml + '</div></div>';
+      }).join('') + '</div>' : '<div style="padding:16px;text-align:center;color:var(--text-light);background:#fafafa;border-radius:4px">暂无修订记录</div>';
 
       UI.modal('零件详情',
         '<div class="form-row"><div class="form-group"><label>件号</label><input type="text" value="' + _esc(part.code) + '"' + ro + '></div><div class="form-group"><label>名称</label><input type="text" value="' + _esc(part.name) + '"' + ro + '></div></div>' +
@@ -362,7 +374,6 @@ var Parts = {
         '<div id="part-attachments-view"></div>',
         { footer: '<button class="btn-primary" onclick="UI.closeModal()">关闭</button>',
           afterRender: function() {
-            // 加载附件列表（查看时）
             var attView = document.getElementById('part-attachments-view');
             if (attView && part.id) {
               API.listAttachments('part', part.id).then(function(attachments) {
@@ -389,16 +400,6 @@ var Parts = {
             }
           }
         });
-        (revs.length > 0 ? '<div class="log-list">' + revs.map(function(rev) {
-          var changesHtml = rev.changes.map(function(c) {
-            return '<span class="rev-change"><strong>' + _esc(c.field) + '</strong>：' +
-              '<span style="color:#ff4d4f;text-decoration:line-through">' + _esc(c.oldVal || '(空)') + '</span> → ' +
-              '<span style="color:#52c41a">' + _esc(c.newVal || '(空)') + '</span></span>';
-          }).join('&nbsp;&nbsp;');
-          return '<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:4px">' +
-            '<div><span class="log-time">' + UI.formatDate(rev.date) + '</span><span class="log-user">' + _esc(rev.author) + '</span></div>' +
-            '<div style="font-size:13px;line-height:1.6">' + changesHtml + '</div></div>';
-        }).join('') + '</div>' : '<div style="padding:16px;text-align:center;color:var(--text-light);background:#fafafa;border-radius:4px">暂无修订记录</div>');
     });
   },
 
@@ -431,17 +432,30 @@ var Parts = {
     });
   },
 
-  // 附件上传
+  // 附件上传（异步，不阻塞UI）
   _onAttachmentChange: function(entityType, entityId, fileType, input) {
     var file = input.files[0];
     if (!file) return;
     UI._fileToBase64(file, function(base64) {
-      API.uploadAttachment(entityType, entityId, fileType, file.name, base64).then(function() {
+      // 不关闭modal，用户可继续操作或保存
+      Store._uploadProgress = { percent: 0, fileName: file.name };
+      Store._currentTask = { entity: 'attachment', op: 'upload', record: { code: file.name } };
+      SyncPanel.updatePanel();
+      API.uploadAttachment(entityType, entityId, fileType, file.name, base64, function(percent) {
+        Store._uploadProgress = { percent: percent, fileName: file.name };
+        SyncPanel.updatePanel();
+      }).then(function() {
+        Store._uploadProgress = null;
+        Store._currentTask = null;
         UI.toast('附件上传成功', 'success');
         Parts._loadAttachmentsForEdit(entityType, entityId, 'part-attachments-area');
+        SyncPanel.updatePanel();
       }).catch(function(err) {
+        Store._uploadProgress = null;
+        Store._currentTask = null;
         console.error('附件上传失败', err);
         UI.toast('附件上传失败: ' + (err.message || err), 'error');
+        SyncPanel.updatePanel();
       });
     });
   },

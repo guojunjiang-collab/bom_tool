@@ -27,7 +27,11 @@ const Store = {
   _syncRunning: false,    // 是否正在处理
   _syncStatus: 'idle',    // idle | syncing | error | offline
   _syncErrorCount: 0,     // 连续失败计数
-  _currentTask: null,     // 当前正在执行的任务（用于面板显示）
+  _currentTask: null,
+
+  _uploadProgress: null,
+
+  _syncStats: { success: 0, failed: 0, total: 0 },
   _syncStats: { success: 0, failed: 0, total: 0 }, // 同步统计
   _taskHistory: [], // 已完成任务历史（用于面板显示）
 
