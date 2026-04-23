@@ -379,8 +379,20 @@ var Parts = {
     // 加载自定义字段
     _loadCFDefs().then(function(cfDefs) {
       var cfValues = part.customFields || {};
-      // 如果本地没有缓存，尝试从API加载
       var cfHtml = _renderCFViewHtml(cfValues, cfDefs, 'part');
+
+      // 修订记录HTML
+      var revHtml = '<h4 style="margin:20px 0 12px">📝 修订记录 (' + revs.length + ')</h4>';
+      revHtml += revs.length > 0 ? '<div class="log-list">' + revs.map(function(rev) {
+        var changesHtml = rev.changes.map(function(c) {
+          return '<span class="rev-change"><strong>' + _esc(c.field) + '</strong>：' +
+            '<span style="color:#ff4d4f;text-decoration:line-through">' + _esc(c.oldVal || '(空)') + '</span> → ' +
+            '<span style="color:#52c41a">' + _esc(c.newVal || '(空)') + '</span></span>';
+        }).join('&nbsp;&nbsp;');
+        return '<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:4px">' +
+          '<div><span class="log-time">' + UI.formatDate(rev.date) + '</span><span class="log-user">' + _esc(rev.author) + '</span></div>' +
+          '<div style="font-size:13px;line-height:1.6">' + changesHtml + '</div></div>';
+      }).join('') + '</div>' : '<div style="padding:16px;text-align:center;color:var(--text-light);background:#fafafa;border-radius:4px">暂无修订记录</div>';
 
       UI.modal('零件详情',
         '<div class="form-row"><div class="form-group"><label>件号</label><input type="text" value="' + _esc(part.code) + '"' + ro + '></div><div class="form-group"><label>名称</label><input type="text" value="' + _esc(part.name) + '"' + ro + '></div></div>' +
@@ -388,10 +400,9 @@ var Parts = {
         '<div class="form-row"><div class="form-group"><label>状态</label>' + UI.statusTag(part.status) + '</div></div>' +
         cfHtml +
         '<div id="part-attachments-view"></div>' +
-        '<h4 style="margin:20px 0 12px">📝 修订记录 (' + revs.length + ')</h4>',
+        revHtml,
         { footer: '<button class="btn-primary" onclick="UI.closeModal()">关闭</button>',
           afterRender: function() {
-            // 加载附件列表（查看时）
             var attView = document.getElementById('part-attachments-view');
             if (attView && part.id) {
               API.listAttachments('part', part.id).then(function(attachments) {
@@ -418,16 +429,6 @@ var Parts = {
             }
           }
         });
-        (revs.length > 0 ? '<div class="log-list">' + revs.map(function(rev) {
-          var changesHtml = rev.changes.map(function(c) {
-            return '<span class="rev-change"><strong>' + _esc(c.field) + '</strong>：' +
-              '<span style="color:#ff4d4f;text-decoration:line-through">' + _esc(c.oldVal || '(空)') + '</span> → ' +
-              '<span style="color:#52c41a">' + _esc(c.newVal || '(空)') + '</span></span>';
-          }).join('&nbsp;&nbsp;');
-          return '<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:4px">' +
-            '<div><span class="log-time">' + UI.formatDate(rev.date) + '</span><span class="log-user">' + _esc(rev.author) + '</span></div>' +
-            '<div style="font-size:13px;line-height:1.6">' + changesHtml + '</div></div>';
-        }).join('') + '</div>' : '<div style="padding:16px;text-align:center;color:var(--text-light);background:#fafafa;border-radius:4px">暂无修订记录</div>');
     });
   },
 

@@ -382,24 +382,15 @@ const SyncManager = {
 
                 var localTime  = existing.updatedAt  || 0;
 
-                if (serverTime > localTime) {
-
+if (serverTime > localTime) {
                   // 服务器更新更晚 → 覆盖本地（同时更新ID为服务器ID）
-
-                  var localId = existing.id;
-
+                  console.log('[Pull] 覆盖本地', entity.key, 'id=' + existing.id, 'oldStatus=' + existing.status, '-> newStatus=' + converted.status);
                   var updateData = Object.assign({}, converted, { id: converted.id });
-
-
-
-                  Store.update(entity.key, localId, updateData, { silent: true, skipSync: true });
-
+                  Store.update(entity.key, existing.id, updateData, { silent: true, skipSync: true });
                 } else {
-
                   // 本地更新更晚或同等新 → 保留本地（同时更新ID为服务器ID）
-
+                  console.log('[Pull] 保留本地', entity.key, 'id=' + existing.id, 'status=' + existing.status);
                   Store.update(entity.key, existing.id, { id: converted.id }, { silent: true, skipSync: true });
-
                 }
 
               } else {
