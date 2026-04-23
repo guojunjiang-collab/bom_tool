@@ -297,41 +297,39 @@ var Components = {
 
 
 
-  _viewComp: function(id) {
-
-    var comp = Store.getById('components', id);
-
-    if (!comp) return;
-
-    var ap = Store.getAll('parts');
-
-    var ac = Store.getAll('components');
-
-    if (comp.parts && comp.parts.length > 0) {
-
-      comp.parts.sort(function(a, b) {
-
-        var typeA = a.childType || 'part';
-
-        var typeB = b.childType || 'part';
-
-        var refIdA = typeA === 'component' ? (a.componentId || '') : (a.partId || '');
-
-        var refIdB = typeB === 'component' ? (b.componentId || '') : (b.partId || '');
-
-        var infoA = typeA === 'part' ? ap.find(function(x) { return x.id === refIdA; }) : ac.find(function(x) { return x.id === refIdA; });
-
-        var infoB = typeB === 'part' ? ap.find(function(x) { return x.id === refIdB; }) : ac.find(function(x) { return x.id === refIdB; });
-
-        var codeA = (infoA && infoA.code) || '';
-
-        var codeB = (infoB && infoB.code) || '';
-
-        return codeA.localeCompare(codeB);
-
-      });
-
-    }
+   _viewComp: function(id) {
+ 
+     var comp = Store.getById('components', id);
+ 
+     if (!comp) return;
+ 
+     var ap = Store.getAll('parts');
+ 
+     var ac = Store.getAll('components');
+ 
+     var sortedParts = comp.parts && comp.parts.length > 0
+       ? comp.parts.slice().sort(function(a, b) {
+ 
+         var typeA = a.childType || 'part';
+ 
+         var typeB = b.childType || 'part';
+ 
+         var refIdA = typeA === 'component' ? (a.componentId || '') : (a.partId || '');
+ 
+         var refIdB = typeB === 'component' ? (b.componentId || '') : (b.partId || '');
+ 
+         var infoA = typeA === 'part' ? ap.find(function(x) { return x.id === refIdA; }) : ac.find(function(x) { return x.id === refIdA; });
+ 
+         var infoB = typeB === 'part' ? ap.find(function(x) { return x.id === refIdB; }) : ac.find(function(x) { return x.id === refIdB; });
+ 
+         var codeA = (infoA && infoA.code) || '';
+ 
+         var codeB = (infoB && infoB.code) || '';
+ 
+         return codeA.localeCompare(codeB);
+ 
+       })
+       : (comp.parts || []);
 
     var buildTree = function(items, depth, maxDepth) {
 
@@ -429,7 +427,7 @@ var Components = {
 
     };
 
-    flattenTree(comp.parts, 1);
+    flattenTree(sortedParts, 1);
 
     var tableHtml = tableRows.map(function(r) { return '<tr style="cursor:pointer" onclick="Components._openChildDetail(\'' + r.childType + '\',\'' + r.refId + '\',\'' + comp.id + '\')"><td style="padding-left:' + (r.level * 15) + 'px">' + r.level + '</td><td>' + r.icon + ' ' + r.label + '</td><td>' + r.code + '</td><td>' + r.name + '</td><td>' + r.spec + '</td><td>' + r.version + '</td><td>' + UI.statusTag(r.status) + '</td><td>' + r.quantity + '</td></tr>'; }).join('');
 
@@ -445,11 +443,11 @@ var Components = {
       '<div class="form-row"><div class="form-group"><label>状态</label>' + UI.statusTag(comp.status) + '</div></div>' +
       cfHtml +
 
-      '<h4 style="margin-bottom:12px">子项列表 (' + (comp.parts||[]).length + '种)</h4>' +
+      '<h4 style="margin-bottom:12px">子项列表 (' + (sortedParts||[]).length + '种)</h4>' +
 
       '<div class="tabs" id="comp-tabs"><div class="tab active" data-t="tree">🌲 树形视图</div><div class="tab" data-t="table">📊 表格视图</div><div class="tab" data-t="attachment">📎 附件</div></div>' +
 
-      '<div id="comp-tree-view"><div class="tree-view" style="max-height:400px;overflow-y:auto;color:#333"><div style="display:grid;grid-template-columns:50px 80px 1fr 1fr 1fr 60px 60px 60px;padding:8px 10px;background:#fafafa;font-weight:600;border-bottom:1px solid #e8e8e8"><span>层级</span><span>类型</span><span>件号</span><span>名称</span><span>规格型号</span><span>版本</span><span>状态</span><span>用量</span></div>' + buildTree(comp.parts, 1, 6) + '</div></div>' +
+      '<div id="comp-tree-view"><div class="tree-view" style="max-height:400px;overflow-y:auto;color:#333"><div style="display:grid;grid-template-columns:50px 80px 1fr 1fr 1fr 60px 60px 60px;padding:8px 10px;background:#fafafa;font-weight:600;border-bottom:1px solid #e8e8e8"><span>层级</span><span>类型</span><span>件号</span><span>名称</span><span>规格型号</span><span>版本</span><span>状态</span><span>用量</span></div>' + buildTree(sortedParts, 1, 6) + '</div></div>' +
 
       '<div id="comp-table-view" style="display:none"><div class="table-wrapper" style="max-height:400px;overflow-y:auto;color:#333"><table><thead><tr><th style="width:50px;font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">层级</th><th style="width:80px;font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">类型</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">件号</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">名称</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">规格型号</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">版本</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">状态</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">用量</th></tr></thead><tbody>' + (tableHtml || '<tr><td colspan="8" style="text-align:center;color:#333">暂无数据</td></tr>') + '</tbody></table></div></div>' +
 
@@ -819,7 +817,15 @@ afterRender: function() {
 
       : (comp && comp.parts ? comp.parts : []);
 
-    if (items.length === 0) {
+    if (!window._editCompData && comp && comp.parts && comp.parts.length > 0) {
+
+      window._editCompData = comp.parts.slice();
+
+      items = window._editCompData;
+
+    }
+
+    if ((items || []).length === 0) {
 
       return '<p style="color:var(--text-light);font-size:13px;padding:8px 0">暂无子项，请点击"添加子项"添加</p>';
 
@@ -828,6 +834,56 @@ afterRender: function() {
     var ap = Store.getAll('parts');
 
     var ac = Store.getAll('components');
+
+    if (items === window._editCompData) {
+
+      items.sort(function(a, b) {
+
+        var typeA = a.childType || 'part';
+
+        var typeB = b.childType || 'part';
+
+        var refIdA = typeA === 'component' ? (a.componentId || '') : (a.partId || '');
+
+        var refIdB = typeB === 'component' ? (b.componentId || '') : (b.partId || '');
+
+        var infoA = typeA === 'part' ? ap.find(function(x) { return x.id === refIdA; }) : ac.find(function(x) { return x.id === refIdA; });
+
+        var infoB = typeB === 'part' ? ap.find(function(x) { return x.id === refIdB; }) : ac.find(function(x) { return x.id === refIdB; });
+
+        var codeA = (infoA && infoA.code) || '';
+
+        var codeB = (infoB && infoB.code) || '';
+
+        return codeA.localeCompare(codeB);
+
+      });
+
+    } else {
+
+      items = items.slice().sort(function(a, b) {
+
+        var typeA = a.childType || 'part';
+
+        var typeB = b.childType || 'part';
+
+        var refIdA = typeA === 'component' ? (a.componentId || '') : (a.partId || '');
+
+        var refIdB = typeB === 'component' ? (b.componentId || '') : (b.partId || '');
+
+        var infoA = typeA === 'part' ? ap.find(function(x) { return x.id === refIdA; }) : ac.find(function(x) { return x.id === refIdA; });
+
+        var infoB = typeB === 'part' ? ap.find(function(x) { return x.id === refIdB; }) : ac.find(function(x) { return x.id === refIdB; });
+
+        var codeA = (infoA && infoA.code) || '';
+
+        var codeB = (infoB && infoB.code) || '';
+
+        return codeA.localeCompare(codeB);
+
+      });
+
+    }
 
     var user = Auth.getUser();
 
@@ -993,11 +1049,11 @@ afterRender: function() {
 
       if (!container) return;
 
-      var items = window._editCompData || [];
-
       var ap = Store.getAll('parts');
 
       var ac = Store.getAll('components');
+
+      var items = window._editCompData || [];
 
       if (items.length === 0) {
 
@@ -1006,6 +1062,28 @@ afterRender: function() {
         return;
 
       }
+
+      items.sort(function(a, b) {
+
+        var typeA = a.childType || 'part';
+
+        var typeB = b.childType || 'part';
+
+        var refIdA = typeA === 'component' ? (a.componentId || '') : (a.partId || '');
+
+        var refIdB = typeB === 'component' ? (b.componentId || '') : (b.partId || '');
+
+        var infoA = typeA === 'part' ? ap.find(function(x) { return x.id === refIdA; }) : ac.find(function(x) { return x.id === refIdA; });
+
+        var infoB = typeB === 'part' ? ap.find(function(x) { return x.id === refIdB; }) : ac.find(function(x) { return x.id === refIdB; });
+
+        var codeA = (infoA && infoA.code) || '';
+
+        var codeB = (infoB && infoB.code) || '';
+
+        return codeA.localeCompare(codeB);
+
+      });
 
       var h = '<table style="table-layout:fixed;width:100%;margin-bottom:4px"><thead><tr style="background:#f8f8f8"><th style="width:70px;text-align:left;padding:4px 6px;font-size:11px;color:#888">类型</th><th style="width:100px;text-align:left;padding:4px 6px;font-size:11px;color:#888">件号</th><th style="text-align:left;padding:4px 6px;font-size:11px;color:#888">名称</th><th style="width:60px;text-align:left;padding:4px 6px;font-size:11px;color:#888">版本</th><th style="width:60px;text-align:left;padding:4px 6px;font-size:11px;color:#888">状态</th><th style="width:50px;text-align:center;padding:4px 6px;font-size:11px;color:#888">用量</th><th style="width:40px"></th></tr></thead><tbody>';
 
