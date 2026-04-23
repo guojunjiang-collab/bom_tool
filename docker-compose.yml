@@ -24,6 +24,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: bom_backend
+    volumes:
+      - ./backend/app:/app/app
     environment:
       - POSTGRES_USER=bomadmin
       - POSTGRES_PASSWORD=bompass
