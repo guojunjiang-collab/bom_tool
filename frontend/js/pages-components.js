@@ -433,30 +433,6 @@ var Components = {
 
     var tableHtml = tableRows.map(function(r) { return '<tr style="cursor:pointer" onclick="Components._openChildDetail(\'' + r.childType + '\',\'' + r.refId + '\',\'' + comp.id + '\')"><td style="padding-left:' + (r.level * 15) + 'px">' + r.level + '</td><td>' + r.icon + ' ' + r.label + '</td><td>' + r.code + '</td><td>' + r.name + '</td><td>' + r.spec + '</td><td>' + r.version + '</td><td>' + UI.statusTag(r.status) + '</td><td>' + r.quantity + '</td></tr>'; }).join('');
 
-    var compRevs = (comp.revisions || []).slice().reverse();
-
-    var revHtml = '<h4 style="margin:20px 0 12px">📝 修订记录 (' + compRevs.length + ')</h4>' +
-
-      (compRevs.length > 0 ? '<div class="log-list">' + compRevs.map(function(rev) {
-
-        var changesHtml = rev.changes.map(function(c) {
-
-          return '<span class="rev-change"><strong>' + _esc(c.field) + '</strong>：' +
-
-            '<span style="color:#ff4d4f;text-decoration:line-through">' + _esc(c.oldVal || '(空)') + '</span> → ' +
-
-            '<span style="color:#52c41a">' + _esc(c.newVal || '(空)') + '</span></span>';
-
-        }).join('&nbsp;&nbsp;');
-
-        return '<div class="log-item" style="flex-direction:column;align-items:flex-start;gap:4px">' +
-
-          '<div><span class="log-time">' + UI.formatDate(rev.date) + '</span><span class="log-user">' + _esc(rev.author) + '</span></div>' +
-
-          '<div style="font-size:13px;line-height:1.6">' + changesHtml + '</div></div>';
-
-      }).join('') + '</div>' : '<div style="padding:16px;text-align:center;color:var(--text-light);background:#fafafa;border-radius:4px">暂无修订记录</div>');
-
     // 加载自定义字段并渲染详情
     _loadCFDefs().then(function(cfDefs) {
       var cfValues = comp.customFields || {};
@@ -477,9 +453,7 @@ var Components = {
 
       '<div id="comp-table-view" style="display:none"><div class="table-wrapper" style="max-height:400px;overflow-y:auto;color:#333"><table><thead><tr><th style="width:50px;font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">层级</th><th style="width:80px;font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">类型</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">件号</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">名称</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">规格型号</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">版本</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">状态</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">用量</th></tr></thead><tbody>' + (tableHtml || '<tr><td colspan="8" style="text-align:center;color:#333">暂无数据</td></tr>') + '</tbody></table></div></div>' +
 
-      '<div id="comp-attachment-view" style="display:none"><div class="attachment-view" style="padding:16px;background:#f9f9f9;border-radius:4px;margin-top:8px" id="comp-attachment-content">加载中...</div></div>' +
-
-      revHtml,
+      '<div id="comp-attachment-view" style="display:none"><div class="attachment-view" style="padding:16px;background:#f9f9f9;border-radius:4px;margin-top:8px" id="comp-attachment-content">加载中...</div></div>',
 
       { large: true, footer: '<button class="btn-primary" id="btn-comp-detail-close" onclick="UI.closeModal()">关闭</button>',
 afterRender: function() {
@@ -788,6 +762,7 @@ afterRender: function() {
           data.revisions = [];
 
           Store.add('components', data); Store.addLog('新增部件', '新增部件 ' + code + ' - ' + name);
+        // 删除：不再记录 revisions 历史
           // 新增部件后保存自定义字段值
           var cfDefsForSave2 = Store.getAll('custom_field_defs');
           var cfVals2 = _collectCFValues(cfDefsForSave2, 'component');

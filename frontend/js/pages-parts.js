@@ -138,29 +138,6 @@ var Parts = {
         status:document.getElementById('fp-st').value,
       };
       if (part) {
-        var _fieldLabels = { code:'件号', name:'名称', spec:'规格型号', status:'状态' };
-        var _trackFields = ['code','name','spec','status'];
-        var _changes = [];
-        _trackFields.forEach(function(f) {
-          var oldVal = (part[f] || '').toString();
-          var newVal = (data[f] || '').toString();
-          if (oldVal !== newVal) {
-            _changes.push({
-              field: _fieldLabels[f] || f,
-              oldVal: oldVal || '(无)',
-              newVal: newVal || '(无)'
-            });
-          }
-        });
-        if (_changes.length > 0) {
-          var revisions = part.revisions || [];
-          revisions.push({
-            date: Date.now(),
-            author: Auth.getUser() ? Auth.getUser().realName : '未知',
-            changes: _changes
-          });
-          data.revisions = revisions;
-        }
         Store.update('parts', id, data);
         Store.addLog('编辑零件', '修改零件 ' + code);
         var cfDefsForSave = Store.getAll('custom_field_defs');
@@ -168,8 +145,7 @@ var Parts = {
         Store.update('parts', id, { customFields: cfVals }, { skipSync: true });
         _saveCFValues('part', id, cfVals, cfDefsForSave);
         UI.toast('零件更新成功', 'success');
-      } else {
-        data.revisions = [];
+    } else {
         Store.add('parts', data);
         Store.addLog('新增零件', '新增零件 ' + code + ' - ' + name);
         var cfDefsForSave2 = Store.getAll('custom_field_defs');
@@ -354,12 +330,8 @@ var Parts = {
     newPart.status = 'draft'; // 新版本默认为草稿
     newPart.createdAt = Date.now();
     newPart.updatedAt = Date.now();
-    // 构建修订记录：记录升版操作
-    var revisions = oldPart.revisions || [];
-    revisions.push({ date: Date.now(), author: (Auth.getUser() ? Auth.getUser().realName : '未知'), changes: [{ field: '版本', oldVal: oldPart.version, newVal: newV }] });
-    oldPart.revisions = revisions;
-    newPart.revisions = []; // 新版本从空白修订记录开始
-    // 保存
+    // Deleted: no longer tracking revisions
+    // Save
     Store.update('parts', id, oldPart); // 更新原零件的历史
     Store.add('parts', newPart); // 添加新版本零件
     Store.addLog('零件升版', '零件 ' + oldPart.code + ' 从版本' + oldPart.version + ' 升版至 ' + newV);
@@ -387,8 +359,7 @@ var Parts = {
         '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" value="' + _esc(part.spec||'') + '"' + ro + '></div><div class="form-group"><label>版本</label><input type="text" value="' + (part.version||'A') + '"' + ro + '></div></div>' +
         '<div class="form-row"><div class="form-group"><label>状态</label>' + UI.statusTag(part.status) + '</div></div>' +
         cfHtml +
-        '<div id="part-attachments-view"></div>' +
-        '<h4 style="margin:20px 0 12px">📝 修订记录 (' + revs.length + ')</h4>',
+        '<div id="part-attachments-view"></div>',
         { footer: '<button class="btn-primary" onclick="UI.closeModal()">关闭</button>',
           afterRender: function() {
             // 加载附件列表（查看时）

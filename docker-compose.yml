@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bom_postgres
+    environment:
+      POSTGRES_USER: bomadmin
+      POSTGRES_PASSWORD: bompass
+      POSTGRES_DB: bom_system
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - bom_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: bom_redis
+    networks:
+      - bom_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bom_backend
+    environment:
+      - POSTGRES_USER=bomadmin
+      - POSTGRES_PASSWORD=bompass
+      - POSTGRES_DB=bom_system
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - bom_network
+    ports:
+      - "8000:8000"
+
+  nginx:
+    image: nginx:alpine
+    container_name: bom_nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./frontend:/usr/share/nginx/html
+    depends_on:
+      - backend
+    networks:
+      - bom_network
+    ports:
+      - "80:80"
+
+networks:
+  bom_network:
+    driver: bridge
+
+volumes:
+  postgres_data:

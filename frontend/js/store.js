@@ -40,8 +40,8 @@ const Store = {
 
   // 实体字段到 API 字段的映射（本地字段名 → API 字段名）
 _fieldMap: {
-    parts:      { status: 'status', revisions: 'revisions', createdAt: 'created_at', updatedAt: 'updated_at' },
-    components: { version: 'version', revisions: 'revisions', createdAt: 'created_at', updatedAt: 'updated_at' },
+    parts:      { status: 'status', createdAt: 'created_at', updatedAt: 'updated_at' },
+    components: { version: 'version', createdAt: 'created_at', updatedAt: 'updated_at' },
     bom_items:  { childId: 'child_id', childType: 'child_type', partId: 'part_id', componentId: 'component_id', quantity: 'quantity', parentType: 'parent_type', parentId: 'parent_id', createdAt: 'created_at' },
     users:      { realName: 'real_name', department: 'department', phone: 'phone', createdAt: 'created_at', updatedAt: 'updated_at' },
     dict_materials: { id: 'id', value: 'value', name: 'name' },
