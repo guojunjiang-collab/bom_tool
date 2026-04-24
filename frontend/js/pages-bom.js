@@ -360,13 +360,22 @@ var Bom = {
         ? Store.getById('components', rid) : Store.getById('parts', rid);
       var comps = Store.getAll('components');
       var partsAll = Store.getAll('parts');
-      var allItems = Store.getAll('bom_items') || [];
+      // 直接从部件的 parts[] 字段动态构建引用映射，不依赖 bom_items
       var childToParents = {};
-      allItems.forEach(function(item) {
-        var key = item.childId || item.child_id;
-        if (!key) return;
-        if (!childToParents[key]) childToParents[key] = [];
-        childToParents[key].push(item);
+      comps.forEach(function(comp) {
+        var items = comp.parts || [];
+        items.forEach(function(item) {
+          var childId = item.partId || item.componentId || item.childId || item.child_id;
+          if (!childId) return;
+          if (!childToParents[childId]) childToParents[childId] = [];
+          childToParents[childId].push({
+            parentId: comp.id,
+            parentType: 'assembly',
+            quantity: item.quantity || 1,
+            childId: childId,
+            childType: item.childType || (item.partId ? 'part' : 'component')
+          });
+        });
       });
       var visited = new Set();
       var rootType = rtype || 'part';
@@ -381,8 +390,8 @@ var Bom = {
         var refs = [];
         var parentItems = childToParents[entityId] || [];
         parentItems.forEach(function(bi) {
-          var pt = bi.parentType || bi.parent_type;
-          var puid = bi.parentId || bi.parent_id;
+          var pt = bi.parentType;
+          var puid = bi.parentId;
           if (!puid) return;
           var parentEntity = (pt === 'assembly' || pt === 'component')
             ? comps.find(function(c2){return c2.id === puid;})
