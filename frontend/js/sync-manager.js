@@ -378,13 +378,16 @@ const SyncManager = {
 
                 // 冲突解决：以 updatedAt 更晚者胜出（新数据覆盖旧数据）
 
-                var serverTime = converted.updatedAt || 0;
+var serverTime = converted.updatedAt || 0;
 
                 var localTime  = existing.updatedAt  || 0;
 
-if (serverTime > localTime) {
+                if (serverTime > localTime) {
                   // 服务器更新更晚 → 覆盖本地（同时更新ID为服务器ID）
                   console.log('[Pull] 覆盖本地', entity.key, 'id=' + existing.id, 'oldStatus=' + existing.status, '-> newStatus=' + converted.status);
+                  if (converted.status === undefined) {
+                    console.warn('[Pull WARNING] converted.status is undefined! raw server response:', item);
+                  }
                   var updateData = Object.assign({}, converted, { id: converted.id });
                   Store.update(entity.key, existing.id, updateData, { silent: true, skipSync: true });
                 } else {
@@ -396,7 +399,9 @@ if (serverTime > localTime) {
               } else {
 
                 // 本地不存在 → 直接添加
-
+                if (item.status === undefined) {
+                  console.warn('[Pull WARNING] new item has undefined status! raw server response:', item);
+                }
                 Store.add(entity.key, item, { silent: true, skipSync: true });
 
               }
