@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 import uuid
+import base64
 
 from ..database import get_db
 from ..models import User, Attachment
@@ -11,29 +12,28 @@ router = APIRouter(prefix="/attachments", tags=["附件管理"])
 def _attachment_response(att):
     return {
         "id": att.id,
-        "entity_type": att.entity_type,
-        "entity_id": att.entity_id,
-        "file_type": att.file_type,
         "file_name": att.file_name,
-        "file_data": att.file_data,
+        "created_at": att.created_at,
+        "updated_at": att.updated_at,
+    }
+
+def _attachment_response_with_data(att):
+    """包含文件数据的响应（用于下载）"""
+    return {
+        "id": att.id,
+        "file_name": att.file_name,
+        "file_data": base64.b64encode(att.file_data).decode('utf-8') if att.file_data else None,
         "created_at": att.created_at,
         "updated_at": att.updated_at,
     }
 
 @router.get("/")
 async def list_attachments(
-    entity_type: str = None,
-    entity_id: uuid.UUID = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(["admin", "engineer"]))
 ):
-    """获取附件列表，可按 entity_type 和 entity_id 过滤"""
-    query = db.query(Attachment)
-    if entity_type:
-        query = query.filter(Attachment.entity_type == entity_type)
-    if entity_id:
-        query = query.filter(Attachment.entity_id == entity_id)
-    attachments = query.all()
+    """获取附件列表"""
+    attachments = db.query(Attachment).all()
     return [_attachment_response(a) for a in attachments]
 
 @router.post("/")
@@ -42,7 +42,7 @@ async def upload_attachment(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(["admin", "engineer"]))
 ):
-    # 支持 JSON body 和 Form Data
+    """上传附件（JSON body: file_name + file_data(Base64)）"""
     content_type = request.headers.get("content-type", "")
     if "application/json" in content_type:
         body = await request.json()
@@ -50,50 +50,31 @@ async def upload_attachment(
         form = await request.form()
         body = dict(form)
 
-    entity_type = body.get("entity_type")
-    entity_id = body.get("entity_id")
-    file_type = body.get("file_type")
     file_name = body.get("file_name")
     file_data = body.get("file_data")
+    att_id = body.get("id")
+    if att_id:
+        try:
+            att_id = uuid.UUID(att_id)
+        except Exception:
+            att_id = None
 
-    if not entity_type or not entity_id or not file_type:
-        raise HTTPException(status_code=400, detail="缺少必要参数 entity_type, entity_id, file_type")
+    if file_data:
+        try:
+            file_data = base64.b64decode(file_data)
+        except Exception:
+            file_data = None
 
-    # 转换 entity_id 为 UUID
-    try:
-        entity_id = uuid.UUID(entity_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="无效的 entity_id")
-
-    if entity_type not in ('part', 'component'):
-        raise HTTPException(status_code=400, detail="无效的 entity_type")
-    if file_type not in ('source_file', 'drawing', 'stp', 'pdf'):
-        raise HTTPException(status_code=400, detail="无效的 file_type")
-    
-    # 查找已存在的附件记录
-    existing = db.query(Attachment).filter(
-        Attachment.entity_type == entity_type,
-        Attachment.entity_id == entity_id,
-        Attachment.file_type == file_type
-    ).first()
-    
-    if existing:
-        # 更新
-        existing.file_name = file_name
-        existing.file_data = file_data
-    else:
-        # 创建
-        new_att = Attachment(
-            entity_type=entity_type,
-            entity_id=entity_id,
-            file_type=file_type,
-            file_name=file_name,
-            file_data=file_data
-        )
-        db.add(new_att)
-    
+    new_att = Attachment(
+        id=att_id,
+        file_name=file_name,
+        file_data=file_data
+    )
+    db.add(new_att)
     db.commit()
-    return {"message": "附件保存成功"}
+    db.refresh(new_att)
+
+    return {"id": new_att.id, "message": "附件保存成功"}
 
 @router.get("/{attachment_id}")
 async def get_attachment(
@@ -101,34 +82,11 @@ async def get_attachment(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(["admin", "engineer"]))
 ):
-    """获取单个附件（包含 Base64 数据）"""
+    """获取单个附件（包含文件数据，用于下载）"""
     att = db.query(Attachment).filter(Attachment.id == attachment_id).first()
     if not att:
         raise HTTPException(status_code=404, detail="附件不存在")
-    return _attachment_response(att)
-
-
-@router.delete("/by-entity")
-async def delete_attachment_by_entity(
-    entity_type: str,
-    entity_id: uuid.UUID,
-    file_type: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(["admin", "engineer"]))
-):
-    """按 entity_type + entity_id + file_type 删除附件"""
-    att = db.query(Attachment).filter(
-        Attachment.entity_type == entity_type,
-        Attachment.entity_id == entity_id,
-        Attachment.file_type == file_type
-    ).first()
-    if not att:
-        # 附件不存在也返回成功（幂等）
-        return {"message": "附件不存在或已删除"}
-    db.delete(att)
-    db.commit()
-    return {"message": "附件已删除"}
-
+    return _attachment_response_with_data(att)
 
 @router.delete("/{attachment_id}")
 async def delete_attachment(

@@ -35,6 +35,12 @@ async def create_dictionary(
         raise HTTPException(status_code=400, detail=f"无效的字典类型，支持的类型: {', '.join(DICT_TYPES)}")
     
     value = data.get("value", "").strip()
+    dict_id = data.get("id")
+    if dict_id:
+        try:
+            dict_id = uuid.UUID(dict_id)
+        except Exception:
+            dict_id = None
     if not value:
         raise HTTPException(status_code=400, detail="字典值不能为空")
     
@@ -43,7 +49,7 @@ async def create_dictionary(
     if existing:
         raise HTTPException(status_code=400, detail="该字典项已存在")
     
-    db_dict = crud.create_dictionary(db, dict_type, value)
+    db_dict = crud.create_dictionary(db, dict_type, value, id=dict_id)
     
     # 记录日志
     ip = request.client.host if request.client else None

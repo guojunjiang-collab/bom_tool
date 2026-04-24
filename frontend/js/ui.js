@@ -51,24 +51,37 @@ const UI = {
       }
       self.closeModal();
     };
-    document.getElementById('confirm-yes-btn').onclick = function() { 
-      if (opts.noRestore) {
-        // 交给调用方处理：调用方在 onYes 里会自行关闭弹窗
-        onYes();
-      } else {
-        onYes(); 
-        if (opts.closeOnConfirm === false) {
-          // 不关闭，由调用方处理
-        } else if (hadOpenModal) {
-          document.getElementById('modal-body').innerHTML = '';
-          document.getElementById('modal-title').textContent = '';
-          var oldF = document.getElementById('modal-box').querySelector('.modal-footer');
-          if (oldF) oldF.remove();
-        } else {
-          self.closeModal();
-        }
-      }
-    };
+    document.getElementById('confirm-yes-btn').onclick = function() { 
+
+      onYes();
+
+      if (opts.noRestore) {
+
+        // 恢复原编辑界面并保持弹窗打开
+
+        document.getElementById('modal-body').innerHTML = savedBody;
+
+        document.getElementById('modal-title').textContent = savedTitle;
+
+        document.getElementById('modal-box').className = savedBoxClass;
+
+      } else if (opts.closeOnConfirm === false) {
+
+        // 不关闭，由调用方处理
+
+      } else if (hadOpenModal) {
+
+        document.getElementById('modal-body').innerHTML = '';
+
+        self.closeModal();
+
+      } else {
+
+        self.closeModal();
+
+      }
+
+    };
   },
   statusTag(s) {
     var m = { draft:['草稿','tag-warning'], frozen:['冻结','tag-info'], released:['发布','tag-success'], obsolete:['作废','tag-default'] };
@@ -110,12 +123,21 @@ const UI = {
     reader.onerror = function() { callback(null); };
     reader.readAsDataURL(file);
   },
-  _downloadBase64(base64, filename) {
-    if (!base64) { this.toast('无附件可下载', 'warning'); return; }
-    try {
-      var parts = base64.split(',');
-      var mime = parts[0].match(/:(.*?);/)[1];
-      var bstr = atob(parts[1]);
+  _downloadBase64(base64, filename) {
+
+    if (!base64) { this.toast('无附件可下载', 'warning'); return; }
+
+    try {
+      var mime = 'application/octet-stream';
+      var data = base64;
+
+      if (base64.indexOf('data:') === 0) {
+        var parts = base64.split(',');
+        mime = parts[0].match(/:(.*?);/)[1];
+        data = parts[1];
+      }
+
+      var bstr = atob(data);
       var n = bstr.length;
       var u8arr = new Uint8Array(n);
       while (n--) { u8arr[n] = bstr.charCodeAt(n); }

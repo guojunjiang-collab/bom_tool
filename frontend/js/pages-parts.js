@@ -111,7 +111,7 @@ var Parts = {
           });
           // 加载附件列表（编辑时）
           if (part && part.id) {
-            Parts._loadAttachmentsForEdit('part', part.id, 'part-attachments-area');
+            Parts._loadAttachmentsForEdit(part);
           }
         }
       });
@@ -159,111 +159,6 @@ var Parts = {
       }
       UI.closeModal(); Router.render();
     };
-  },
-
-  // 零件编辑：文件选择后更新预览区
-  _onFileChange: function(el, prefix) {
-    var file = el.files[0];
-    if (!file) return;
-    var preview = el.parentElement.querySelector('.file-preview');
-    if (!preview) return;
-    var size = UI._formatFileSize(file.size);
-    var name = file.name;
-    UI._fileToBase64(file, function(base64) {
-      preview.innerHTML = '<span class="file-name">' + _esc(name) + '</span><span class="file-size">' + size + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (base64 || '') + '\',\'' + _esc(name) + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Parts._deletePartAttachment(this,\'' + prefix + '\')">删除</button>';
-    });
-  },
-
-  // 零件：刷新指定字段的附件预览（删除后恢复显示用）
-  _refreshPartAttachmentPreview: function(part, field) {
-    var prefixMap = { sourceFile: 'fp-source', drawing: 'fp-drawing', stp: 'fp-stp', pdf: 'fp-pdf' };
-    var prefix = prefixMap[field];
-    if (!prefix) return;
-    var input = document.getElementById(prefix);
-    if (!input) return;
-    var preview = input.parentElement.querySelector('.file-preview');
-    if (!preview) return;
-    var hasData = part[field + '_data'];
-    if (hasData) {
-      preview.innerHTML = '<span class="file-name">' + _esc(part[field] || '') + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (part[field + '_data'] || '') + '\',\'' + _esc(part[field] || '附件') + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Parts._deletePartAttachment(this,\'' + field + '\')">删除</button>';
-    } else {
-      preview.innerHTML = '<span class="file-name empty">未上传</span>';
-    }
-  },
-
-  // 部件编辑：文件选择后更新预览区（共用函数）
-  _onCompFileChange: function(el, prefix) {
-    var file = el.files[0];
-    if (!file) return;
-    var preview = el.parentElement.querySelector('.file-preview');
-    if (!preview) return;
-    var size = UI._formatFileSize(file.size);
-    var name = file.name;
-    UI._fileToBase64(file, function(base64) {
-      preview.innerHTML = '<span class="file-name">' + _esc(name) + '</span><span class="file-size">' + size + '</span><button type="button" class="btn-link" onclick="UI._downloadBase64(\'' + (base64 || '') + '\',\'' + _esc(name) + '\')">下载</button><button type="button" class="btn-link" style="color:#ff4d4f" onclick="Parts._deleteCompAttachment(this,\'' + prefix + '\')">删除</button>';
-    });
-  },
-
-  // 删除零件附件
-  _deletePartAttachment: function(btn, field) {
-    var partId = window._editPartId;
-    var part = Store.getById('parts', partId);
-    if (!part) return;
-
-    var doDelete = function() {
-      API.deleteAttachment('part', part.id, field).then(function() {
-        var fresh = Store.getById('parts', partId);
-        if (fresh) {
-          fresh[field] = '';
-          fresh[field + '_data'] = '';
-          Store.update('parts', partId, fresh);
-        }
-        Parts._editPart(partId);
-      }).catch(function(err) {
-        console.error('服务器附件删除失败', err);
-        UI.toast('服务器附件删除失败，仍已清除本地记录', 'warning');
-        var fresh = Store.getById('parts', partId);
-        if (fresh) {
-          fresh[field] = '';
-          fresh[field + '_data'] = '';
-          Store.update('parts', partId, fresh);
-        }
-        Parts._editPart(partId);
-      });
-    };
-
-    UI.confirm('确定要删除此附件吗？此操作不可恢复。', doDelete, { noRestore: true, closeOnConfirm: false });
-  },
-
-  // 删除部件附件（共用函数）
-  _deleteCompAttachment: function(btn, field) {
-    var compId = window._editCompId;
-    var comp = Store.getById('components', compId);
-    if (!comp) return;
-
-    var doDelete = function() {
-      API.deleteAttachment('component', comp.id, field).then(function() {
-        var fresh = Store.getById('components', compId);
-        if (fresh) {
-          fresh[field] = '';
-          fresh[field + '_data'] = '';
-          Store.update('components', compId, fresh);
-        }
-        Components._editComp(compId);
-      }).catch(function(err) {
-        console.error('服务器附件删除失败', err);
-        UI.toast('服务器附件删除失败，仍已清除本地记录', 'warning');
-        var fresh = Store.getById('components', compId);
-        if (fresh) {
-          fresh[field] = '';
-          fresh[field + '_data'] = '';
-          Store.update('components', compId, fresh);
-        }
-        Components._editComp(compId);
-      });
-    };
-
-    UI.confirm('确定要删除此附件吗？此操作不可恢复。', doDelete, { noRestore: true, closeOnConfirm: false });
   },
 
   // 删除零件
@@ -371,84 +266,107 @@ var Parts = {
         '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" value="' + _esc(part.spec||'') + '"' + ro + '></div><div class="form-group"><label>版本</label><input type="text" value="' + (part.version||'A') + '"' + ro + '></div></div>' +
         '<div class="form-row"><div class="form-group"><label>状态</label>' + UI.statusTag(part.status) + '</div></div>' +
         cfHtml +
-        '<div id="part-attachments-view"></div>',
-        { footer: '<button class="btn-primary" onclick="UI.closeModal()">关闭</button>',
-          afterRender: function() {
-            var attView = document.getElementById('part-attachments-view');
-            if (attView && part.id) {
-              API.listAttachments('part', part.id).then(function(attachments) {
-                attachments = attachments || [];
-                var html = '<h4 style="margin:20px 0 12px">📎 附件</h4>';
-                var fileTypes = ['source_file', 'drawing', 'stp', 'pdf'];
-                var fileLabels = { source_file: '源文件', drawing: '图纸', stp: 'STP', pdf: 'PDF' };
-                fileTypes.forEach(function(ft) {
-                  var att = attachments.find(function(a) { return a.file_type === ft; });
-                  html += '<div style="display:flex;align-items:center;margin-bottom:8px;font-size:13px">';
-                  html += '<span style="width:60px;flex-shrink:0">' + fileLabels[ft] + '</span>';
-                  if (att) {
-                    html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _esc(att.file_name || '') + '">' + _esc(att.file_name || '(无名称)') + '</span>';
-                    html += '<button type="button" class="btn-link" onclick="Parts._downloadAttachment(\'' + att.id + '\')">下载</button>';
-                  } else {
-                    html += '<span style="flex:1;color:#999">未上传</span>';
-                  }
-                  html += '</div>';
-                });
-                attView.innerHTML = html;
-              }).catch(function(err) {
-                console.error('加载附件失败', err);
-              });
-            }
-          }
-        });
+        Parts._renderAttachmentsView(part),
+        { footer: '<button class="btn-primary" onclick="UI.closeModal()">关闭</button>' });
     });
   },
 
-  // 加载附件列表并渲染
-  _loadAttachmentsForEdit: function(entityType, entityId, containerId) {
-    var container = document.getElementById(containerId);
+  // 渲染附件显示（详情页）
+  _renderAttachmentsView: function(part) {
+    var html = '<h4 style="margin:20px 0 12px">📎 附件</h4>';
+    var attFields = [
+      { name: 'sourceFile', nameId: 'sourceFileId', label: '源文件' },
+      { name: 'drawing', nameId: 'drawingId', label: '图纸' },
+      { name: 'stp', nameId: 'stpId', label: 'STP' },
+      { name: 'pdf', nameId: 'pdfId', label: 'PDF' }
+    ];
+    attFields.forEach(function(f) {
+      var attName = part[f.name];
+      var attId = part[f.nameId];
+      html += '<div style="display:flex;align-items:center;margin-bottom:8px;font-size:13px">';
+      html += '<span style="width:60px;flex-shrink:0">' + f.label + '</span>';
+      if (attName && attId) {
+        html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _esc(attName || '') + '">' + _esc(attName || '(无名称)') + '</span>';
+        html += '<button type="button" class="btn-link" onclick="Parts._downloadAttachment(\'' + attId + '\')">下载</button>';
+      } else {
+        html += '<span style="flex:1;color:#999">未上传</span>';
+      }
+      html += '</div>';
+    });
+    return html;
+  },
+
+  // 加载附件列表并渲染（编辑页）
+  _loadAttachmentsForEdit: function(part) {
+    var container = document.getElementById('part-attachments-area');
     if (!container) return;
-    API.listAttachments(entityType, entityId).then(function(attachments) {
-      var html = '<h4 style="margin:16px 0 12px;border-top:1px solid #f0f0f0;padding-top:16px">📎 附件</h4>';
-      var fileTypes = ['source_file', 'drawing', 'stp', 'pdf'];
-      var fileLabels = { source_file: '源文件', drawing: '图纸', stp: 'STP', pdf: 'PDF' };
-      fileTypes.forEach(function(ft) {
-        var att = attachments.find(function(a) { return a.file_type === ft; });
-        html += '<div style="display:flex;align-items:center;margin-bottom:8px;font-size:13px">';
-        html += '<span style="width:60px;flex-shrink:0">' + fileLabels[ft] + '</span>';
-        if (att) {
-          html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:50px" title="' + _esc(att.file_name || '') + '">' + _esc(att.file_name || '(无名称)') + '</span>';
-          html += '<button type="button" class="btn-link" onclick="Parts._downloadAttachment(\'' + att.id + '\')">下载</button>';
-          html += '<button type="button" class="btn-link" style="color:#ff4d4f" onclick="Parts._deleteAttachment(\'' + att.id + '\',\'' + entityType + '\',\'' + entityId + '\',\'' + ft + '\')">删除</button>';
-        } else {
-          html += '<span style="flex:1;color:#999">未上传</span>';
-          html += '<input type="file" id="att-' + ft + '" style="display:none" onchange="Parts._onAttachmentChange(\'' + entityType + '\',\'' + entityId + '\',\'' + ft + '\',this)">';
-          html += '<button type="button" class="btn-link" onclick="document.getElementById(\'att-' + ft + '\').click()">上传</button>';
-        }
-        html += '</div>';
-      });
-      container.innerHTML = html;
-    }).catch(function(err) {
-      console.error('加载附件失败', err);
+    part = part || {};
+    var html = '<h4 style="margin:16px 0 12px;border-top:1px solid #f0f0f0;padding-top:16px">📎 附件</h4>';
+    var attFields = [
+      { name: 'sourceFile', nameId: 'sourceFileId', label: '源文件' },
+      { name: 'drawing', nameId: 'drawingId', label: '图纸' },
+      { name: 'stp', nameId: 'stpId', label: 'STP' },
+      { name: 'pdf', nameId: 'pdfId', label: 'PDF' }
+    ];
+    attFields.forEach(function(f) {
+      var attName = part[f.name];
+      var attId = part[f.nameId];
+      html += '<div style="display:flex;align-items:center;margin-bottom:8px;font-size:13px">';
+      html += '<span style="width:60px;flex-shrink:0">' + f.label + '</span>';
+      if (attName && attId) {
+        html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:50px" title="' + _esc(attName || '') + '">' + _esc(attName || '(无名称)') + '</span>';
+        html += '<button type="button" class="btn-link" onclick="Parts._downloadAttachment(\'' + attId + '\')">下载</button>';
+        html += '<button type="button" class="btn-link" style="color:#ff4d4f" onclick="Parts._deleteAttachment(\'' + part.id + '\',\'' + f.name + '\',\'' + f.nameId + '\')">删除</button>';
+      } else {
+        html += '<span style="flex:1;color:#999">未上传</span>';
+        html += '<input type="file" id="att-' + f.name + '" style="display:none" onchange="Parts._onAttachmentChange(\'' + part.id + '\',\'' + f.name + '\',\'' + f.nameId + '\',this)">';
+        html += '<button type="button" class="btn-link" onclick="document.getElementById(\'att-' + f.name + '\').click()">上传</button>';
+      }
+      html += '</div>';
     });
+    container.innerHTML = html;
   },
 
-  // 附件上传（异步，不阻塞UI）
-  _onAttachmentChange: function(entityType, entityId, fileType, input) {
+  // 附件上传
+  _onAttachmentChange: function(partId, fieldName, fieldIdName, input) {
     var file = input.files[0];
     if (!file) return;
     UI._fileToBase64(file, function(base64) {
-      // 不关闭modal，用户可继续操作或保存
       Store._uploadProgress = { percent: 0, fileName: file.name };
       Store._currentTask = { entity: 'attachment', op: 'upload', record: { code: file.name } };
       SyncPanel.updatePanel();
-      API.uploadAttachment(entityType, entityId, fileType, file.name, base64, function(percent) {
-        Store._uploadProgress = { percent: percent, fileName: file.name };
-        SyncPanel.updatePanel();
-      }).then(function() {
+      API.uploadAttachment(file.name, base64).then(function(result) {
+        var attId = result.id;
+        var updateData = {};
+        updateData[fieldName] = file.name;
+        updateData[fieldIdName] = attId;
+
+        // 直接操作 Store 数组更新 UI，避免 Store.update ID 匹配问题
+        var parts = Store.getAll('parts');
+        var idx = parts.findIndex(function(p) { return p.id === partId; });
+        if (idx !== -1) {
+           Object.assign(parts[idx], updateData, { updatedAt: Date.now() });
+           Store.saveAll('parts', parts);
+           Store._enqueue('update', 'parts', parts[idx], {});
+           Parts._loadAttachmentsForEdit(parts[idx]);
+         } else {
+            console.error('零件未找到:', partId);
+            UI.toast('更新失败', 'error');
+         }
+
+        // 同步队列外立即调用 API，确保后端即时更新
+        var apiMap = { sourceFile: 'source_file', drawing: 'drawing', stp: 'stp', pdf: 'pdf' };
+        var apiIdMap = { sourceFile: 'source_file_id', drawing: 'drawing_id', stp: 'stp_id', pdf: 'pdf_id' };
+        var apiUpdate = {};
+        apiUpdate[apiMap[fieldName]] = file.name;
+        apiUpdate[apiIdMap[fieldName]] = attId;
+        API.updatePart(partId, apiUpdate).catch(function(err) {
+          console.warn('直接API更新失败，同步队列将继续重试:', err);
+        });
+
         Store._uploadProgress = null;
         Store._currentTask = null;
         UI.toast('附件上传成功', 'success');
-        Parts._loadAttachmentsForEdit(entityType, entityId, 'part-attachments-area');
         SyncPanel.updatePanel();
       }).catch(function(err) {
         Store._uploadProgress = null;
@@ -474,15 +392,19 @@ var Parts = {
   },
 
   // 删除附件
-  _deleteAttachment: function(attachmentId, entityType, entityId, fileType) {
-    var partId = window._editPartId;
-    UI.confirm('确定要删除此附件吗？', function() {
-      API.deleteAttachment(entityType, entityId, fileType).then(function() {
-        UI.toast('附件已删除', 'success');
-        Parts._editPart(partId);
-      }).catch(function(err) {
-        UI.toast('删除失败: ' + (err.message || err), 'error');
-      });
-    }, { noRestore: true });
+  _deleteAttachment: function(partId, fieldName, fieldIdName) {
+    if (!confirm('确定要删除此附件吗？')) return;
+    var part = Store.getById('parts', partId);
+    if (!part) return;
+    var attId = part[fieldIdName];
+    if (attId) {
+      API.deleteAttachment(attId).catch(function() {});
+    }
+    var updateData = {};
+    updateData[fieldName] = null;
+    updateData[fieldIdName] = null;
+    Store.update('parts', partId, updateData);
+    UI.toast('附件已删除', 'success');
+    Parts._loadAttachmentsForEdit(Store.getById('parts', partId));
   }
 };

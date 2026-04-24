@@ -15,6 +15,7 @@ class UserBase(BaseSchema):
     status: str = "active"
 
 class UserCreate(UserBase):
+    id: Optional[uuid.UUID] = None
     password: str = Field(..., min_length=6)
 
 class UserUpdate(BaseSchema):
@@ -36,10 +37,18 @@ class PartBase(BaseSchema):
     version: str = "A"
     status: str = "draft"
     revisions: Optional[List[Any]] = None
+    source_file: Optional[str] = None
+    source_file_id: Optional[uuid.UUID] = None
+    drawing: Optional[str] = None
+    drawing_id: Optional[uuid.UUID] = None
+    stp: Optional[str] = None
+    stp_id: Optional[uuid.UUID] = None
+    pdf: Optional[str] = None
+    pdf_id: Optional[uuid.UUID] = None
 
 
 class PartCreate(PartBase):
-    pass
+    id: Optional[uuid.UUID] = None
 
 class PartUpdate(BaseSchema):
     name: Optional[str] = None
@@ -47,6 +56,14 @@ class PartUpdate(BaseSchema):
     version: Optional[str] = None
     status: Optional[str] = None
     revisions: Optional[List[Any]] = None
+    source_file: Optional[str] = None
+    source_file_id: Optional[uuid.UUID] = None
+    drawing: Optional[str] = None
+    drawing_id: Optional[uuid.UUID] = None
+    stp: Optional[str] = None
+    stp_id: Optional[uuid.UUID] = None
+    pdf: Optional[str] = None
+    pdf_id: Optional[uuid.UUID] = None
 
 class PartResponse(PartBase):
     id: uuid.UUID
@@ -60,9 +77,17 @@ class AssemblyBase(BaseSchema):
     version: str = "V1.0"
     status: str = "draft"
     revisions: Optional[List[Any]] = None
+    source_file: Optional[str] = None
+    source_file_id: Optional[uuid.UUID] = None
+    drawing: Optional[str] = None
+    drawing_id: Optional[uuid.UUID] = None
+    stp: Optional[str] = None
+    stp_id: Optional[uuid.UUID] = None
+    pdf: Optional[str] = None
+    pdf_id: Optional[uuid.UUID] = None
 
 class AssemblyCreate(AssemblyBase):
-    pass
+    id: Optional[uuid.UUID] = None
 
 class AssemblyUpdate(BaseSchema):
     name: Optional[str] = None
@@ -70,6 +95,14 @@ class AssemblyUpdate(BaseSchema):
     version: Optional[str] = None
     status: Optional[str] = None
     revisions: Optional[List[Any]] = None
+    source_file: Optional[str] = None
+    source_file_id: Optional[uuid.UUID] = None
+    drawing: Optional[str] = None
+    drawing_id: Optional[uuid.UUID] = None
+    stp: Optional[str] = None
+    stp_id: Optional[uuid.UUID] = None
+    pdf: Optional[str] = None
+    pdf_id: Optional[uuid.UUID] = None
 
 class AssemblyResponse(AssemblyBase):
     id: uuid.UUID
@@ -84,7 +117,7 @@ class BOMItemBase(BaseSchema):
     quantity: float = 1.0
 
 class BOMItemCreate(BOMItemBase):
-    pass
+    id: Optional[uuid.UUID] = None
 
 class BOMItemUpdate(BaseSchema):
     quantity: Optional[float] = None
@@ -126,7 +159,7 @@ class DictionaryBase(BaseSchema):
     value: str = Field(..., min_length=1, max_length=255)
 
 class DictionaryCreate(DictionaryBase):
-    pass
+    id: Optional[uuid.UUID] = None
 
 class DictionaryUpdate(BaseSchema):
     value: Optional[str] = None
@@ -178,7 +211,7 @@ class CustomFieldDefinitionBase(BaseSchema):
     sort_order: int = 0
 
 class CustomFieldDefinitionCreate(CustomFieldDefinitionBase):
-    pass
+    id: Optional[uuid.UUID] = None
 
 class CustomFieldDefinitionUpdate(BaseSchema):
     name: Optional[str] = None
@@ -196,6 +229,7 @@ class CustomFieldDefinitionResponse(CustomFieldDefinitionBase):
 
 class CustomFieldValueItem(BaseSchema):
     """单个字段的值"""
+    id: Optional[uuid.UUID] = None
     field_id: uuid.UUID
     value: Optional[Any] = None  # 可以是 str / number / list[str]
 

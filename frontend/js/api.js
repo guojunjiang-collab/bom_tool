@@ -106,12 +106,6 @@ const API = {
 
 
 
-  async deleteAttachment(entity_type, entity_id, file_type) {
-
-    return this._fetch('DELETE', '/attachments/by-entity?entity_type=' + entity_type + '&entity_id=' + entity_id + '&file_type=' + file_type);
-
-  },
-
   async getParts() { return this._fetch('GET', '/parts/'); },
 
   async getPart(id) { return this._fetch('GET', '/parts/' + id); },
@@ -192,51 +186,15 @@ const API = {
   async setCustomFieldValues(entityType, entityId, values) { return this._fetch('PUT', '/custom-fields/values/' + entityType + '/' + entityId, { values: values }); },
   async resetBusinessData() { return this._fetch('POST', '/custom-fields/reset-data'); },
 
-  // Attachments
-  async listAttachments(entityType, entityId) {
-    var path = '/attachments/?entity_type=' + entityType + '&entity_id=' + entityId;
-    return this._fetch('GET', path);
+  // Attachments v3.0
+  async listAttachments() {
+    return this._fetch('GET', '/attachments/');
   },
-  async uploadAttachment(entityType, entityId, fileType, fileName, fileData, onProgress) {
-    if (onProgress && typeof XMLHttpRequest !== 'undefined') {
-      return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            const percent = Math.round((e.loaded / e.total) * 100);
-            onProgress(percent);
-          }
-        };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              resolve(JSON.parse(xhr.responseText));
-            } catch {
-              resolve({});
-            }
-          } else {
-            reject({ message: 'Upload failed: ' + xhr.status });
-          }
-        };
-        xhr.onerror = () => reject({ message: 'Network error' });
-        const token = localStorage.getItem('bom_api_token');
-        xhr.open('POST', this._baseUrl + '/attachments/');
-        if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        const body = JSON.stringify({
-          entity_type: entityType,
-          entity_id: entityId,
-          file_type: fileType,
-          file_name: fileName,
-          file_data: fileData
-        });
-        xhr.send(body);
-      });
+  async uploadAttachment(fileName, fileData) {
+    if (fileData && fileData.indexOf(',') !== -1) {
+      fileData = fileData.split(',')[1];
     }
     return this._fetch('POST', '/attachments/', {
-      entity_type: entityType,
-      entity_id: entityId,
-      file_type: fileType,
       file_name: fileName,
       file_data: fileData
     });
@@ -244,8 +202,8 @@ const API = {
   async getAttachment(attachmentId) {
     return this._fetch('GET', '/attachments/' + attachmentId);
   },
-  async deleteAttachment(entityType, entityId, fileType) {
-    return this._fetch('DELETE', '/attachments/by-entity?entity_type=' + entityType + '&entity_id=' + entityId + '&file_type=' + fileType);
+  async deleteAttachment(attachmentId) {
+    return this._fetch('DELETE', '/attachments/' + attachmentId);
   },
 
   // 全量同步（手动）

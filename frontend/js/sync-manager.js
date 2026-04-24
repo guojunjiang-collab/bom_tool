@@ -362,9 +362,11 @@ const SyncManager = {
 
                     existing = allLocal[li];
 
-                    // 注册 ID 映射：本地临时ID → 服务器真实ID
+                    // UUID 由前端生成后端直接使用，更新本地 ID 以匹配服务器
 
-                    Store.registerId('components', existing.id, converted.id);
+                    if (existing.id !== converted.id) {
+                      existing.id = converted.id;
+                    }
 
                     break;
 
@@ -614,13 +616,9 @@ var serverTime = converted.updatedAt || 0;
 
           var localItem = localData[li];
 
-          if (!Store.resolveId(cent.key, localItem.id)) {
+          // UUID 由前端生成后端直接使用，不再通过 ID 映射判断同步状态
 
-            // 本地记录无服务器ID映射 = 尚未同步到服务器
-
-            localAdded.push(localItem);
-
-          }
+          // 未同步的本地记录由后台同步队列处理
 
         }
 

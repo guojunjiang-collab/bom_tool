@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Integer, DateTime, Numeric, Text, JSON, UniqueConstraint, ForeignKey
+from sqlalchemy import Column, String, Integer, DateTime, Numeric, Text, JSON, UniqueConstraint, ForeignKey, LargeBinary
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -28,6 +28,14 @@ class Part(Base):
     version = Column(String(32), default="A")
     status = Column(String(32), nullable=False, default="draft")
     revisions = Column(JSONB, default=[])
+    source_file = Column(String(255))
+    source_file_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
+    drawing = Column(String(255))
+    drawing_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
+    stp = Column(String(255))
+    stp_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
+    pdf = Column(String(255))
+    pdf_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -40,6 +48,14 @@ class Assembly(Base):
     version = Column(String(32), default="V1.0")
     status = Column(String(32), nullable=False, default="draft")
     revisions = Column(JSONB, default=[])
+    source_file = Column(String(255))
+    source_file_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
+    drawing = Column(String(255))
+    drawing_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
+    stp = Column(String(255))
+    stp_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
+    pdf = Column(String(255))
+    pdf_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -66,14 +82,11 @@ class OperationLog(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Attachment(Base):
-    """附件表：独立存储零部件的附件数据"""
+    """附件表：简化后仅存储文件内容（通过 Part/Assembly 外键关联）"""
     __tablename__ = "attachments"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    entity_type = Column(String(32), nullable=False)  # 'part' or 'component'
-    entity_id = Column(UUID(as_uuid=True), nullable=False)
-    file_type = Column(String(32), nullable=False)    # 'source_file', 'drawing', 'stp', 'pdf'
     file_name = Column(String(255))
-    file_data = Column(Text)  # Base64 encoded file content
+    file_data = Column(LargeBinary)  # 使用 BYTEA 存储二进制文件内容
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
