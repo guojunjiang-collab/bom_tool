@@ -35,8 +35,6 @@ var Components = {
 
         '<div class="page-header"><h2>📦 部件管理</h2><div class="actions">' +
 
-          '<button class="btn-outline" onclick="UI.csvComponents()">📥 导出Excel</button>' +
-
           (Auth.canEdit() ? '<button class="btn-primary" id="btn-add-cp">＋ 新增部件</button>' : '') +
 
         '</div></div>' +
@@ -47,11 +45,11 @@ var Components = {
 
           '<div class="spacer"></div><span style="font-size:13px;color:var(--text-secondary)">共 ' + data.length + ' 条</span></div>' +
 
-        '<div class="table-wrapper"><table id="components-table"><thead><tr><th data-sort="code" class="th-sortable">件号<span class="th-sort-icon"></span></th><th data-sort="name" class="th-sortable">名称<span class="th-sort-icon"></span></th><th data-sort="spec" class="th-sortable">规格型号<span class="th-sort-icon"></span></th><th data-sort="version" class="th-sortable">版本<span class="th-sort-icon"></span></th><th data-sort="parts" class="th-sortable">零件数<span class="th-sort-icon"></span></th><th data-sort="status" class="th-sortable">状态<span class="th-sort-icon"></span></th><th data-sort="updatedAt" class="th-sortable">更新时间<span class="th-sort-icon"></span></th><th>操作</th></tr></thead><tbody>' +
+        '<div class="table-wrapper"><table id="components-table"><thead><tr><th data-sort="code" class="th-sortable">件号<span class="th-sort-icon"></span></th><th data-sort="name" class="th-sortable">中文名称<span class="th-sort-icon"></span></th><th data-sort="spec" class="th-sortable">规格型号<span class="th-sort-icon"></span></th><th data-sort="version" class="th-sortable">版本<span class="th-sort-icon"></span></th><th data-sort="parts" class="th-sortable">零件数<span class="th-sort-icon"></span></th><th data-sort="status" class="th-sortable">状态<span class="th-sort-icon"></span></th><th data-sort="updatedAt" class="th-sortable">更新时间<span class="th-sort-icon"></span></th><th>操作</th></tr></thead><tbody>' +
 
         (data.length === 0 ? '<tr><td colspan="8" style="text-align:center;color:var(--text-light);padding:40px">暂无数据</td></tr>' :
 
-          data.map(function(c2) { return '<tr onclick="Components._viewComp(\'' + c2.id + '\');" style="cursor:pointer"><td><strong>' + c2.code + '</strong></td><td>' + c2.name + '</td><td>' + (c2.spec||'-') + '</td><td><span class="tag" style="background:#e6f7ff;color:#1890ff;font-weight:600">' + c2.version + '</span></td><td>' + (c2.parts||[]).length + ' 种</td><td>' + UI.statusTag(c2.status) + '</td><td style="font-size:12px;color:var(--text-secondary)">' + UI.formatDate(c2.updatedAt) + '</td><td>' + (Auth.canEdit() ? '<button class="btn-text" onclick="event.stopPropagation();Components._exportBom(\'' + c2.id + '\')">导出</button><button class="btn-text" onclick="event.stopPropagation();Components._editComp(\'' + c2.id + '\')">编辑</button><button class="btn-text danger" onclick="event.stopPropagation();Components._deleteComp(\'' + c2.id + '\')">删除</button>' : '') + '</td></tr>'; }).join('')) +
+          data.map(function(c2) { return '<tr onclick="Components._viewComp(\'' + c2.id + '\');" style="cursor:pointer"><td>' + c2.code + '</td><td>' + c2.name + '</td><td>' + (c2.spec||'-') + '</td><td><span class="tag" style="background:#e6f7ff;color:#1890ff;font-weight:600">' + c2.version + '</span></td><td>' + (c2.parts||[]).length + ' 种</td><td>' + UI.statusTag(c2.status) + '</td><td style="font-size:12px;color:var(--text-secondary)">' + UI.formatDate(c2.updatedAt) + '</td><td>' + (Auth.canEdit() ? '<button class="btn-text" onclick="event.stopPropagation();Components._exportBom(\'' + c2.id + '\')">导出</button><button class="btn-text" onclick="event.stopPropagation();Components._editComp(\'' + c2.id + '\')">编辑</button><button class="btn-text danger" onclick="event.stopPropagation();Components._deleteComp(\'' + c2.id + '\')">删除</button>' : '') + '</td></tr>'; }).join('')) +
 
         '</tbody></table></div></div>';
 
@@ -237,7 +235,7 @@ var Components = {
 
     }
 
-    var headers = ['层级', '类型', '件号', '名称', '版本', '状态', '用量', '规格', '材料'];
+    var headers = ['层级', '类型', '件号', '中文名称', '版本', '状态', '用量', '规格', '材料'];
 
     var csvLines = [headers.join(',')];
 
@@ -438,7 +436,7 @@ var Components = {
 
     UI.modal('部件详情 - ' + comp.name,
 
-      '<div class="form-row"><div class="form-group"><label>件号</label><input type="text" value="' + _esc(comp.code) + '" readonly></div><div class="form-group"><label>名称</label><input type="text" value="' + _esc(comp.name) + '" readonly></div></div>' +
+      '<div class="form-row"><div class="form-group"><label>件号</label><input type="text" value="' + _esc(comp.code) + '" readonly></div><div class="form-group"><label>中文名称</label><input type="text" value="' + _esc(comp.name) + '" readonly></div></div>' +
       '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" value="' + _esc(comp.spec||'') + '" readonly></div><div class="form-group"><label>版本</label><input type="text" value="' + (comp.version||'A') + '" readonly></div></div>' +
       '<div class="form-row"><div class="form-group"><label>状态</label>' + UI.statusTag(comp.status) + '</div></div>' +
       cfHtml +
@@ -447,9 +445,9 @@ var Components = {
 
       '<div class="tabs" id="comp-tabs"><div class="tab active" data-t="tree">🌲 树形视图</div><div class="tab" data-t="table">📊 表格视图</div><div class="tab" data-t="attachment">📎 附件</div></div>' +
 
-      '<div id="comp-tree-view"><div class="tree-view" style="max-height:400px;overflow-y:auto;color:#333"><div style="display:grid;grid-template-columns:50px 80px 1fr 1fr 1fr 60px 60px 60px;padding:8px 10px;background:#fafafa;font-weight:600;border-bottom:1px solid #e8e8e8"><span>层级</span><span>类型</span><span>件号</span><span>名称</span><span>规格型号</span><span>版本</span><span>状态</span><span>用量</span></div>' + buildTree(sortedParts, 1, 6) + '</div></div>' +
+      '<div id="comp-tree-view"><div class="tree-view" style="max-height:400px;overflow-y:auto;color:#333"><div style="display:grid;grid-template-columns:50px 80px 1fr 1fr 1fr 60px 60px 60px;padding:8px 10px;background:#fafafa;font-weight:600;border-bottom:1px solid #e8e8e8"><span>层级</span><span>类型</span><span>件号</span><span>中文名称</span><span>规格型号</span><span>版本</span><span>状态</span><span>用量</span></div>' + buildTree(sortedParts, 1, 6) + '</div></div>' +
 
-      '<div id="comp-table-view" style="display:none"><div class="table-wrapper" style="max-height:400px;overflow-y:auto;color:#333"><table><thead><tr><th style="width:50px;font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">层级</th><th style="width:80px;font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">类型</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">件号</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">名称</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">规格型号</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">版本</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">状态</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">用量</th></tr></thead><tbody>' + (tableHtml || '<tr><td colspan="8" style="text-align:center;color:#333">暂无数据</td></tr>') + '</tbody></table></div></div>' +
+      '<div id="comp-table-view" style="display:none"><div class="table-wrapper" style="max-height:400px;overflow-y:auto;color:#333"><table><thead><tr><th style="width:50px;font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">层级</th><th style="width:80px;font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">类型</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">件号</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">中文名称</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">规格型号</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">版本</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">状态</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">用量</th></tr></thead><tbody>' + (tableHtml || '<tr><td colspan="8" style="text-align:center;color:#333">暂无数据</td></tr>') + '</tbody></table></div></div>' +
 
       '<div id="comp-attachment-view" style="display:none"><div class="attachment-view" style="padding:16px;background:#f9f9f9;border-radius:4px;margin-top:8px">' + Components._renderAttachmentsView(comp) + '</div></div>',
 
@@ -542,7 +540,7 @@ var Components = {
 
     UI.modal(comp ? '编辑部件' : '新增部件',
 
-      '<div class="form-row"><div class="form-group"><label>部件件号 <span class="required">*</span></label><input type="text" id="fc-code" value="' + _esc(comp ? comp.code : '') + '"' + ro + '></div><div class="form-group"><label>部件名称 <span class="required">*</span></label><input type="text" id="fc-name" value="' + _esc(comp ? comp.name : '') + '"' + ro + '></div></div>' +
+      '<div class="form-row"><div class="form-group"><label>部件件号 <span class="required">*</span></label><input type="text" id="fc-code" value="' + _esc(comp ? comp.code : '') + '"' + ro + '></div><div class="form-group"><label>部件中文名称 <span class="required">*</span></label><input type="text" id="fc-name" value="' + _esc(comp ? comp.name : '') + '"' + ro + '></div></div>' +
 
       '<div class="form-group"><label>规格型号</label><input type="text" id="fc-spec" value="' + _esc(comp ? comp.spec||'' : '') + '"' + ro + '></div>' +
 
@@ -583,7 +581,7 @@ var Components = {
 
       var name = document.getElementById('fc-name').value.trim();
 
-      if (!code || !name) { UI.toast('件号和名称为必填项', 'warning'); return; }
+      if (!code || !name) { UI.toast('件号和中文名称为必填项', 'warning'); return; }
 
       var dup = Store.getAll('components').find(function(c2) { return c2.code === code && c2.version === (comp ? comp.version : 'A') && (!comp || c2.id !== comp.id); });
 
@@ -621,7 +619,7 @@ var Components = {
 
       if (comp) {
 
-        var _compFieldLabels = { code:'件号', name:'名称', spec:'规格型号', status:'状态' };
+        var _compFieldLabels = { code:'件号', name:'中文名称', spec:'规格型号', status:'状态' };
 
         var _compTrackFields = ['code','name','spec','status'];
 
@@ -785,7 +783,7 @@ var Components = {
 
     var readOnly = isReleasedOrObsolete && !isAdmin;
 
-    var html = '<table style="margin-bottom:8px"><thead><tr><th>类型</th><th>件号</th><th>名称</th><th>版本</th><th>状态</th><th>用量</th><th></th></tr></thead><tbody>';
+    var html = '<table style="margin-bottom:8px"><thead><tr><th>类型</th><th>件号</th><th>中文名称</th><th>版本</th><th>状态</th><th>用量</th><th></th></tr></thead><tbody>';
 
     items.forEach(function(item, idx) {
 
@@ -975,7 +973,7 @@ var Components = {
 
       });
 
-      var h = '<table style="table-layout:fixed;width:100%;margin-bottom:4px"><thead><tr style="background:#f8f8f8"><th style="width:70px;text-align:left;padding:4px 6px;font-size:11px;color:#888">类型</th><th style="width:100px;text-align:left;padding:4px 6px;font-size:11px;color:#888">件号</th><th style="text-align:left;padding:4px 6px;font-size:11px;color:#888">名称</th><th style="width:60px;text-align:left;padding:4px 6px;font-size:11px;color:#888">版本</th><th style="width:60px;text-align:left;padding:4px 6px;font-size:11px;color:#888">状态</th><th style="width:50px;text-align:center;padding:4px 6px;font-size:11px;color:#888">用量</th><th style="width:40px"></th></tr></thead><tbody>';
+      var h = '<table style="table-layout:fixed;width:100%;margin-bottom:4px"><thead><tr style="background:#f8f8f8"><th style="width:70px;text-align:left;padding:4px 6px;font-size:11px;color:#888">类型</th><th style="width:100px;text-align:left;padding:4px 6px;font-size:11px;color:#888">件号</th><th style="text-align:left;padding:4px 6px;font-size:11px;color:#888">中文名称</th><th style="width:60px;text-align:left;padding:4px 6px;font-size:11px;color:#888">版本</th><th style="width:60px;text-align:left;padding:4px 6px;font-size:11px;color:#888">状态</th><th style="width:50px;text-align:center;padding:4px 6px;font-size:11px;color:#888">用量</th><th style="width:40px"></th></tr></thead><tbody>';
 
       items.forEach(function(item, idx) {
 
@@ -1155,7 +1153,7 @@ var Components = {
 
       }
 
-      var html2 = '<table style="table-layout:fixed;width:100%"><thead><tr style="background:#f8f8f8"><th style="width:80px;text-align:left;padding:6px 10px;font-size:12px;color:#888">类型</th><th style="width:110px;text-align:left;padding:6px 10px;font-size:12px;color:#888">件号</th><th style="text-align:left;padding:6px 10px;font-size:12px;color:#888">名称</th><th style="width:80px;text-align:left;padding:6px 10px;font-size:12px;color:#888">版本</th><th style="width:70px;text-align:left;padding:6px 10px;font-size:12px;color:#888">状态</th><th style="width:70px;text-align:center;padding:6px 10px;font-size:12px;color:#888">操作</th></tr></thead><tbody>';
+      var html2 = '<table style="table-layout:fixed;width:100%"><thead><tr style="background:#f8f8f8"><th style="width:80px;text-align:left;padding:6px 10px;font-size:12px;color:#888">类型</th><th style="width:110px;text-align:left;padding:6px 10px;font-size:12px;color:#888">件号</th><th style="text-align:left;padding:6px 10px;font-size:12px;color:#888">中文名称</th><th style="width:80px;text-align:left;padding:6px 10px;font-size:12px;color:#888">版本</th><th style="width:70px;text-align:left;padding:6px 10px;font-size:12px;color:#888">状态</th><th style="width:70px;text-align:center;padding:6px 10px;font-size:12px;color:#888">操作</th></tr></thead><tbody>';
 
       results.forEach(function(item) {
 
@@ -1420,7 +1418,7 @@ var Components = {
 
   // 渲染附件显示（详情页）
   _renderAttachmentsView: function(comp) {
-    var html = '<h4 style="margin:20px 0 12px">📎 附件</h4>';
+    var html = '';
     var attFields = [
       { name: 'sourceFile', nameId: 'sourceFileId', label: '源文件' },
       { name: 'drawing', nameId: 'drawingId', label: '图纸' },

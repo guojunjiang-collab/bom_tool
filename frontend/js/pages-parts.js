@@ -30,7 +30,7 @@ var Parts = {
           '<div class="search-box"><input type="text" id="ps" placeholder="搜索件号/名称/规格..." value="' + _esc(_f.keyword) + '"></div>' +
           '<select id="pst"><option value="">全部状态</option><option value="draft"' + (_f.status === 'draft' ? ' selected' : '') + '>草稿</option><option value="frozen"' + (_f.status === 'frozen' ? ' selected' : '') + '>冻结</option><option value="released"' + (_f.status === 'released' ? ' selected' : '') + '>发布</option><option value="obsolete"' + (_f.status === 'obsolete' ? ' selected' : '') + '>作废</option></select>' +
           '<div class="spacer"></div><span style="font-size:13px;color:var(--text-secondary)">共 ' + total + ' 条</span>' +
-        '</div><div class="table-wrapper"><table id="parts-table"><thead><tr><th data-sort="code" class="th-sortable">件号<span class="th-sort-icon"></span></th><th data-sort="name" class="th-sortable">名称<span class="th-sort-icon"></span></th><th data-sort="spec" class="th-sortable">规格型号<span class="th-sort-icon"></span></th><th data-sort="version" class="th-sortable">版本<span class="th-sort-icon"></span></th><th data-sort="status" class="th-sortable">状态<span class="th-sort-icon"></span></th><th>操作</th></tr></thead><tbody>' +
+        '</div><div class="table-wrapper"><table id="parts-table"><thead><tr><th data-sort="code" class="th-sortable">件号<span class="th-sort-icon"></span></th><th data-sort="name" class="th-sortable">中文名称<span class="th-sort-icon"></span></th><th data-sort="spec" class="th-sortable">规格型号<span class="th-sort-icon"></span></th><th data-sort="version" class="th-sortable">版本<span class="th-sort-icon"></span></th><th data-sort="status" class="th-sortable">状态<span class="th-sort-icon"></span></th><th>操作</th></tr></thead><tbody>' +
         (pd.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--text-light);padding:40px)">暂无数据</td></tr>' :
           pd.map(function(p) {
             return '<tr onclick="Parts._viewPart(\'' + p.id + '\');" style="cursor:pointer"><td>' + p.code + '</td><td>' + p.name + '</td><td>' + _esc(p.spec||'') + '</td><td><span class="tag" style="background:#e6f7ff;color:#1890ff;font-weight:600">' + (p.version||'A') + '</span></td><td>' + UI.statusTag(p.status) + '</td><td>' + (canE ? '<button class="btn-text" onclick="event.stopPropagation();Parts._editPart(\'' + p.id + '\')">编辑</button><button class="btn-text danger" onclick="event.stopPropagation();Parts._deletePart(\'' + p.id + '\')">删除</button>' : '<span style="color:var(--text-light);font-size:12px">只读</span>') + '</td></tr>';
@@ -75,10 +75,24 @@ var Parts = {
 
   // 导出零件清单
   _exportParts: function() {
-    UI.exportCSV(Store.getAll('parts'), '零件清单.csv', [
-      {key:'code',label:'件号'},{key:'name',label:'名称'},{key:'spec',label:'规格'},
-      {key:'version',label:'版本'},{key:'status',label:'状态'}
-    ]);
+    var statusLabel = function(v) { return {draft:'草稿',frozen:'冻结',released:'发布',obsolete:'作废'}[v] || v; };
+    var columns = [
+      {key:'code',label:'件号'},{key:'name',label:'中文名称'},{key:'spec',label:'规格'},
+      {key:'version',label:'版本'},
+      {key:'status',label:'状态',render:function(r){return statusLabel(r.status);}},
+      {key:'sourceFile',label:'源文件'},{key:'drawing',label:'图纸'},
+      {key:'stp',label:'STP'},{key:'pdf',label:'PDF'}
+    ];
+    // 动态追加自定义字段
+    var cfDefs = Store.getAll('custom_field_defs');
+    cfDefs.forEach(function(d) {
+      if (d.applies_to === 'part' || d.applies_to === 'both') {
+        columns.push({key:'customFields',label:d.name,render:function(r){
+          return (r.customFields && r.customFields[d.field_key]) ? r.customFields[d.field_key] : '';
+        }});
+      }
+    });
+    UI.exportCSV(Store.getAll('parts'), '零件清单.csv', columns);
   },
 
   // 编辑零件（新增/修改）
@@ -94,7 +108,7 @@ var Parts = {
     var ro = canE ? '' : ' readonly';
     var roExceptStatus = (isFrozen && (isAdmin || userRole === 'engineer')) ? '' : (canE ? '' : ' readonly');
     UI.modal(part ? '编辑零件' : '新增零件',
-      '<div class="form-row"><div class="form-group"><label>零件件号 <span class="required">*</span></label><input type="text" id="fp-code" value="' + (part ? part.code : '') + '" placeholder="如 PT-021"' + ro + '></div><div class="form-group"><label>零件名称 <span class="required">*</span></label><input type="text" id="fp-name" value="' + (part ? part.name : '') + '" placeholder="如 M12螺栓"' + ro + '></div></div>' +
+      '<div class="form-row"><div class="form-group"><label>零件件号 <span class="required">*</span></label><input type="text" id="fp-code" value="' + (part ? part.code : '') + '" placeholder="如 PT-021"' + ro + '></div><div class="form-group"><label>零件中文名称 <span class="required">*</span></label><input type="text" id="fp-name" value="' + (part ? part.name : '') + '" placeholder="如 M12螺栓"' + ro + '></div></div>' +
       '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" id="fp-spec" value="' + _esc(part ? part.spec : '') + '"' + ro + '></div><div class="form-group"><label>版本</label><input type="text" id="fp-version" value="' + (part ? part.version || 'A' : 'A') + '" readonly></div></div>' +
       '<div class="form-row"><div class="form-group"><label>状态</label><select id="fp-st"' + roExceptStatus + '><option value="draft"' + (!part || part.status === 'draft' ? ' selected' : '') + '>草稿</option><option value="frozen"' + (part && part.status === 'frozen' ? ' selected' : '') + '>冻结</option><option value="released"' + (part && part.status === 'released' ? ' selected' : '') + '>发布</option><option value="obsolete"' + (part && part.status === 'obsolete' ? ' selected' : '') + '>作废</option></select></div></div>' +
       '<div id="cf-part-edit-area"></div>' +  // 自定义字段占位
@@ -118,7 +132,7 @@ var Parts = {
       document.getElementById('btn-sp').onclick = function() {
       var code = document.getElementById('fp-code').value.trim();
       var name = document.getElementById('fp-name').value.trim();
-      if (!code || !name) { UI.toast('件号和名称为必填项', 'warning'); return; }
+      if (!code || !name) { UI.toast('件号和中文名称为必填项', 'warning'); return; }
       var dup = Store.getAll('parts').find(function(p) { return p.code === code && p.version === (part ? part.version : 'A') && (!part || p.id !== part.id); });
       if (dup) { UI.toast('该件号+版本组合已存在', 'error'); return; }
       var user = Auth.getUser();
@@ -262,7 +276,7 @@ var Parts = {
       }).join('') + '</div>' : '<div style="padding:16px;text-align:center;color:var(--text-light);background:#fafafa;border-radius:4px">暂无修订记录</div>';
 
       UI.modal('零件详情',
-        '<div class="form-row"><div class="form-group"><label>件号</label><input type="text" value="' + _esc(part.code) + '"' + ro + '></div><div class="form-group"><label>名称</label><input type="text" value="' + _esc(part.name) + '"' + ro + '></div></div>' +
+        '<div class="form-row"><div class="form-group"><label>件号</label><input type="text" value="' + _esc(part.code) + '"' + ro + '></div><div class="form-group"><label>中文名称</label><input type="text" value="' + _esc(part.name) + '"' + ro + '></div></div>' +
         '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" value="' + _esc(part.spec||'') + '"' + ro + '></div><div class="form-group"><label>版本</label><input type="text" value="' + (part.version||'A') + '"' + ro + '></div></div>' +
         '<div class="form-row"><div class="form-group"><label>状态</label>' + UI.statusTag(part.status) + '</div></div>' +
         cfHtml +
