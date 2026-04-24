@@ -24,11 +24,12 @@ def get_users(db, skip=0, limit=100):
 def create_user(db, user):
     hashed_password = get_password_hash(user.password)
     db_user = models.User(
-        id=user.id,
         username=user.username, password_hash=hashed_password,
         real_name=user.real_name, role=user.role,
         department=user.department, phone=user.phone, status=user.status
     )
+    if user.id:
+        db_user.id = user.id
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -242,10 +243,12 @@ def get_bom_item(db, item_id):
 
 def create_log(db, user_id, username, action, target_type=None, target_id=None, detail=None, ip_address=None, id=None):
     db_log = models.OperationLog(
-        id=id, user_id=user_id, username=username, action=action,
+        user_id=user_id, username=username, action=action,
         target_type=target_type, target_id=target_id,
         detail=detail, ip_address=ip_address
     )
+    if id:
+        db_log.id = id
     db.add(db_log)
     db.commit()
     return db_log
@@ -264,7 +267,9 @@ def get_dictionary_by_value(db, dict_type: str, value: str):
     ).first()
 
 def create_dictionary(db, dict_type: str, value: str, id=None):
-    db_dict = models.Dictionary(id=id, dict_type=dict_type, value=value)
+    db_dict = models.Dictionary(dict_type=dict_type, value=value)
+    if id:
+        db_dict.id = id
     db.add(db_dict)
     db.commit()
     db.refresh(db_dict)
@@ -303,16 +308,18 @@ def get_custom_field_definition_by_key(db, field_key):
     return db.query(models.CustomFieldDefinition).filter(models.CustomFieldDefinition.field_key == field_key).first()
 
 def create_custom_field_definition(db, field_def):
-    db_field = models.CustomFieldDefinition(
-        id=field_def.id,
+    kwargs = dict(
         name=field_def.name,
         field_key=field_def.field_key,
         field_type=field_def.field_type,
         options=field_def.options or [],
-        is_required=bool(field_def.is_required),
+        is_required=1 if field_def.is_required else 0,
         applies_to=field_def.applies_to,
         sort_order=field_def.sort_order
     )
+    if field_def.id:
+        kwargs['id'] = field_def.id
+    db_field = models.CustomFieldDefinition(**kwargs)
     db.add(db_field)
     db.commit()
     db.refresh(db_field)
@@ -324,7 +331,7 @@ def update_custom_field_definition(db, field_id, field_update):
         return None
     update_data = field_update.model_dump(exclude_unset=True)
     if 'is_required' in update_data:
-        update_data['is_required'] = bool(update_data['is_required'])
+        update_data['is_required'] = 1 if update_data['is_required'] else 0
     for field, value in update_data.items():
         setattr(db_field, field, value)
     from datetime import datetime
@@ -410,7 +417,6 @@ def set_custom_field_values(db, entity_type, entity_id, values):
             existing.updated_at = datetime.utcnow()
         else:
             new_val = models.CustomFieldValue(
-                id=item.id,
                 field_id=item.field_id,
                 entity_type=entity_type,
                 entity_id=entity_id,
@@ -418,6 +424,8 @@ def set_custom_field_values(db, entity_type, entity_id, values):
                 value_number=value_number,
                 value_json=value_json
             )
+            if item.id:
+                new_val.id = item.id
             db.add(new_val)
     db.commit()
     return True
