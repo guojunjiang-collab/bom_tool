@@ -307,7 +307,7 @@ def create_custom_field_definition(db, field_def):
         field_key=field_def.field_key,
         field_type=field_def.field_type,
         options=field_def.options or [],
-        is_required=1 if field_def.is_required else 0,
+        is_required=bool(field_def.is_required),
         applies_to=field_def.applies_to,
         sort_order=field_def.sort_order
     )
@@ -322,7 +322,7 @@ def update_custom_field_definition(db, field_id, field_update):
         return None
     update_data = field_update.model_dump(exclude_unset=True)
     if 'is_required' in update_data:
-        update_data['is_required'] = 1 if update_data['is_required'] else 0
+        update_data['is_required'] = bool(update_data['is_required'])
     for field, value in update_data.items():
         setattr(db_field, field, value)
     from datetime import datetime
