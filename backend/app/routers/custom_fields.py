@@ -131,8 +131,8 @@ async def get_values(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(["admin", "engineer"]))
 ):
-    if entity_type not in ('part', 'component'):
-        raise HTTPException(status_code=400, detail="entity_type 必须为 part 或 component")
+    if entity_type not in ('part', 'component', 'document'):
+        raise HTTPException(status_code=400, detail="entity_type 必须为 part、component 或 document")
     results = crud.get_custom_field_values(db, entity_type, entity_id)
     return [_value_response(val, field_def) for val, field_def in results]
 
@@ -146,8 +146,8 @@ async def set_values(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(["admin", "engineer"]))
 ):
-    if entity_type not in ('part', 'component'):
-        raise HTTPException(status_code=400, detail="entity_type 必须为 part 或 component")
+    if entity_type not in ('part', 'component', 'document'):
+        raise HTTPException(status_code=400, detail="entity_type 必须为 part、component 或 document")
     crud.set_custom_field_values(db, entity_type, entity_id, batch.values)
     ip = request.client.host if request.client else None
     crud.create_log(db, current_user.id, current_user.username, "更新自定义字段值", entity_type, str(entity_id), f"{len(batch.values)}个字段", ip)

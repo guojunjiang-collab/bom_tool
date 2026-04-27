@@ -298,7 +298,11 @@ def delete_dictionary(db, dict_id):
 def get_custom_field_definitions(db, applies_to=None):
     q = db.query(models.CustomFieldDefinition)
     if applies_to and applies_to != 'all':
-        q = q.filter((models.CustomFieldDefinition.applies_to == applies_to) | (models.CustomFieldDefinition.applies_to == 'both'))
+        if applies_to == 'document':
+            # 'both' 表示零件+部件，不包含图文档
+            q = q.filter(models.CustomFieldDefinition.applies_to == 'document')
+        else:
+            q = q.filter((models.CustomFieldDefinition.applies_to == applies_to) | (models.CustomFieldDefinition.applies_to == 'both'))
     return q.order_by(models.CustomFieldDefinition.sort_order, models.CustomFieldDefinition.created_at).all()
 
 def get_custom_field_definition(db, field_id):

@@ -74,6 +74,7 @@ _fieldMap: {
     if (this._cache && typeof this._cache === 'object') {
       if (Array.isArray(this._cache.documents)) { this._cache.documents = []; }
       if (Array.isArray(this._cache.custom_field_defs)) { this._cache.custom_field_defs = []; }
+      if (Array.isArray(this._cache.users)) { this._cache.users = []; }
       if (this._cache.parts) this._cache.parts = {};
       if (this._cache.components) this._cache.components = {};
       // 其他缓存条目按需清空
@@ -85,10 +86,11 @@ _fieldMap: {
     try { localStorage.removeItem('custom_field_defs'); } catch (e) {}
     try { localStorage.removeItem('part_cache'); } catch (e) {}
     try { localStorage.removeItem('assembly_cache'); } catch (e) {}
+    try { localStorage.removeItem('users_cache'); } catch (e) {}
 
     // 指示用户和系统缓存已清除
     if (this._updateProgress) {
-      this._updateProgress(0, '本地缓存已清除（图文档、自定义字段）', '');
+      this._updateProgress(0, '本地缓存已清除（图文档、自定义字段、用户）', '');
     }
 
     // 清理完毕后，尽量清空零件的本地检出图文档缓存，确保界面不再显示老数据

@@ -587,6 +587,20 @@ var serverTime = converted.updatedAt || 0;
           } catch (e) { console.warn('加载部件自定义字段失败:', citem.code); }
         }
 
+        var docs = Store.getAll('documents');
+        for (var dfi = 0; dfi < docs.length; dfi++) {
+          if (this._cancelled) break;
+          var ditem = docs[dfi];
+          try {
+            var dvals = await API.getCustomFieldValues('document', ditem.id);
+            if (dvals && Array.isArray(dvals)) {
+              var dcfMap = {};
+              dvals.forEach(function(v) { if (v.field_key) dcfMap[v.field_key] = v.value; });
+              Store.update('documents', ditem.id, { customFields: dcfMap }, { silent: true, skipSync: true });
+            }
+          } catch (e) { console.warn('加载图文档自定义字段失败:', ditem.code); }
+        }
+
       } catch (e) {
 
         console.error('加载自定义字段失败:', e);

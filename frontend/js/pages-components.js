@@ -1375,15 +1375,15 @@ var Components = {
   // 渲染附件显示（详情页）
   _renderAttachmentsView: function(comp) {
     var edocList = (comp._entityDocs || []);
-    var html = '<h4 style="margin:20px 0 12px">📎 关联图文档</h4>';
+    var html = '';
     if (edocList.length === 0) {
       html += '<div style="padding:12px;text-align:center;color:#999;font-size:13px">暂无关联图文档</div>';
       return html;
     }
-    html += '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#fafafa"><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">文本档编号</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">文本档名称</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">版本</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">主附件</th></tr></thead><tbody>';
+    html += '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#fafafa"><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">图文档编号</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">图文档名称</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">版本</th><th style="padding:6px 10px;text-align:center;font-size:12px;color:#888">状态</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">主附件</th></tr></thead><tbody>';
     edocList.forEach(function(ed) {
       var d = ed.document || {};
-      html += '<tr style="border-bottom:1px solid #f0f0f0"><td style="padding:6px 10px;font-weight:500">' + _esc(d.code || '') + '</td><td style="padding:6px 10px">' + _esc(d.name || '') + '</td><td style="padding:6px 10px">' + _esc(d.version || '') + '</td><td style="padding:6px 10px">' + (d.file_name ? _esc(d.file_name) : '<span style="color:#ccc">—</span>') + '</td></tr>';
+      html += '<tr style="border-bottom:1px solid #f0f0f0"><td style="padding:6px 10px;font-weight:500">' + _esc(d.code || '') + '</td><td style="padding:6px 10px">' + _esc(d.name || '') + '</td><td style="padding:6px 10px">' + _esc(d.version || '') + '</td><td style="padding:6px 10px;text-align:center">' + UI.statusTag(d.status || 'draft') + '</td><td style="padding:6px 10px">' + (d.file_name ? _esc(d.file_name) : '<span style="color:#ccc">—</span>') + '</td></tr>';
     });
     html += '</tbody></table>';
     return html;
@@ -1395,8 +1395,7 @@ var Components = {
     if (!container) return;
 
     function render(edocs) {
-      var html = '<h4 style="margin:16px 0 12px;border-top:1px solid #f0f0f0;padding-top:16px">📎 关联图文档</h4>' +
-        '<div id="comp-edoc-list-area"></div>' +
+      var html = '<div id="comp-edoc-list-area"></div>' +
         '<button class="btn-outline btn-sm" id="comp-btn-add-edoc" style="margin-top:8px">+ 关联图文文档</button>';
       container.innerHTML = html;
 

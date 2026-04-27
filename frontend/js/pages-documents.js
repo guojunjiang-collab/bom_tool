@@ -13,19 +13,8 @@ var Documents = {
         '</select>' +
       '</div><div class="table-wrapper" id="docs-table-area"></div></div>';
 
-    var docs = [];
-
-    var cached = Store.getAll('documents');
-    if (cached && cached.length > 0) {
-      docs = cached;
-      renderList();
-    }
-
-    API._fetch('GET', '/documents/').then(function(data) {
-      docs = data || [];
-      Store.saveAll('documents', docs);
-      renderList();
-    });
+    var docs = Store.getAll('documents') || [];
+    renderList();
 
     function renderList(list) {
       if (!list && list !== false) list = docs;
@@ -94,12 +83,10 @@ var Documents = {
     var doc = docs.find(function(d) { return d.id === id; });
     if (!doc) return;
 
-    var html = '<div style="border:2px solid #d0d0d0; border-radius:8px; padding:14px; background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.05);">' +
-      '<div class="form-row"><div class="form-group"><label>编号</label><div style="padding:6px 0;font-weight:500">' + _esc(doc.code) + '</div></div><div class="form-group"><label>名称</label><div style="padding:6px 0">' + _esc(doc.name) + '</div></div></div>' +
-      '<div class="form-row"><div class="form-group"><label>版本</label><div style="padding:6px 0">' + _esc(doc.version) + '</div></div><div class="form-group"><label>状态</label><div style="padding:6px 0">' + UI.statusTag(doc.status || 'draft') + '</div></div></div>' +
-      '<div class="form-row"><div class="form-group" style="flex:1"><label>描述</label><div style="padding:6px 0">' + (doc.description ? _esc(doc.description) : '<span style="color:#ccc">—</span>') + '</div></div><div class="form-group" style="flex:1"><label>主附件</label><div style="padding:6px 0">' + (doc.file_name ? _esc(doc.file_name) : '<span style="color:#ccc">未上传</span>') + '</div></div></div>' +
-      '<div id="doc-cf-view-area"></div>' +
-      '</div>';
+    var html = '<div class="form-row"><div class="form-group"><label>编号</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa;font-weight:500">' + _esc(doc.code) + '</div></div><div class="form-group"><label>名称</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa">' + _esc(doc.name) + '</div></div></div>' +
+      '<div class="form-row"><div class="form-group"><label>版本</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa">' + _esc(doc.version) + '</div></div><div class="form-group"><label>状态</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa">' + UI.statusTag(doc.status || 'draft') + '</div></div></div>' +
+      '<div class="form-row"><div class="form-group" style="flex:1"><label>描述</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa">' + (doc.description ? _esc(doc.description) : '<span style="color:#ccc">—</span>') + '</div></div><div class="form-group" style="flex:1"><label>主附件</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa">' + (doc.file_name ? _esc(doc.file_name) : '<span style="color:#ccc">未上传</span>') + '</div></div></div>' +
+      '<div id="doc-cf-view-area"></div>';
 
     UI.modal('图文档详情 — ' + doc.code, html, {
       footer: '<button class="btn-outline" onclick="UI.closeModal()">关闭</button>' +
@@ -132,17 +119,32 @@ var Documents = {
     var isNew = !id;
     var doc = isNew ? null : (Store.getById('documents', id) || null);
 
-    if (id && !doc) {
-      API._fetch('GET', '/documents/' + id).then(function(d) {
-        doc = d;
-        _renderForm(d);
-      }).catch(function() { UI.toast('图文档不存在', 'error'); });
+    if (isNew) {
+      // 新建：直接加载自定义字段定义并渲染
+      _loadDocCFDefs().then(function(cfDefs) {
+        _renderForm(null, cfDefs);
+      });
       return;
     }
 
-    _loadDocCFDefs().then(function(cfDefs) {
-      _renderForm(doc, cfDefs);
-    });
+    // 编辑：先获取文档数据，再获取自定义字段值，然后渲染
+    var docPromise = doc ? Promise.resolve(doc) : API._fetch('GET', '/documents/' + id);
+    
+    Promise.all([docPromise, _loadDocCFDefs()]).then(function(results) {
+      var docData = results[0];
+      var cfDefs = results[1];
+      
+      // 从服务器获取已保存的自定义字段值
+      API.getCustomFieldValues('document', id).then(function(list) {
+        var cfMap = {};
+        (list || []).forEach(function(v) { if (v.field_key) cfMap[v.field_key] = v.value; });
+        docData.customFields = cfMap;
+        _renderForm(docData, cfDefs);
+      }).catch(function() {
+        // 如果获取失败，使用空值
+        _renderForm(docData, cfDefs);
+      });
+    }).catch(function() { UI.toast('图文档不存在', 'error'); });
 
     function _renderForm(doc, cfDefs) {
       cfDefs = cfDefs || [];
@@ -254,135 +256,6 @@ var Documents = {
     };
   },
   
-  _viewDoc: function(id, docs) {
-    var doc = docs.find(function(d) { return d.id === id; });
-    if (!doc) return;
-    var html = '<div class="form-row"><div class="form-group"><label>编号</label><div style="padding:6px 0;font-weight:500">' + _esc(doc.code) + '</div></div><div class="form-group"><label>状态</label><div style="padding:6px 0">' + UI.statusTag(doc.status || 'draft') + '</div></div></div>' +
-      '<div class="form-row"><div class="form-group"><label>名称</label><div style="padding:6px 0">' + _esc(doc.name) + '</div></div>' +
-        '<div class="form-group"><label>版本</label><div style="padding:6px 0">' + _esc(doc.version) + '</div></div></div>' +
-      '<div class="form-group"><label>描述</label><div style="padding:6px 0">' + (doc.description ? _esc(doc.description) : '<span style="color:#ccc">—</span>') + '</div></div>' +
-      '<div class="form-group"><label>主附件</label><div style="padding:6px 0">' + (doc.file_name ? _esc(doc.file_name) : '<span style="color:#ccc">未上传</span>') + '</div></div>';
-    UI.modal('图文档详情 — ' + doc.code, html, {
-      footer: '<button class="btn-outline" onclick="UI.closeModal()">关闭</button>' +
-        '<button class="btn-primary" onclick="UI.closeModal();Documents._editDoc(\'' + doc.id + '\')">编辑</button>'
-    });
-  },
-  
-  _editDoc: function(id) {
-    var isNew = !id;
-    var doc = isNew ? null : (Store.getById('documents', id) || null);
-    if (id && !doc) {
-      API._fetch('GET', '/documents/' + id).then(function(d) {
-        doc = d;
-        _renderForm(d);
-      }).catch(function() { UI.toast('图文档不存在', 'error'); });
-      return;
-    }
-    _loadDocCFDefs().then(function(cfDefs) {
-      _renderForm(doc, cfDefs);
-    });
-    function _renderForm(doc, cfDefs) {
-      cfDefs = cfDefs || [];
-      var cfValues = doc ? (doc.customFields || {}) : {};
-      var cfHtml = _renderCFEditHtmlDoc(cfValues, cfDefs);
-    UI.modal(isNew ? '新建图文文档' : '编辑图文文档',
-        '<div class="form-row"><div class="form-group"><label>编号 <span class="required">*</span></label><input type="text" id="doc-code" value="' + (doc ? _esc(doc.code) : '') + '" placeholder="如：DOC-00001"' + (doc ? ' readonly' : '') + '></div>' +
-        '<div class="form-group"><label>名称 <span class="required">*</span></label><input type="text" id="doc-name" value="' + (doc ? _esc(doc.name) : '') + '" placeholder="如：传动轴图纸"></div></div>' +
-        '<div class="form-row"><div class="form-group"><label>版本</label><input type="text" id="doc-version" value="' + (doc ? _esc(doc.version) : 'A') + '" placeholder="A"></div>' +
-        '<div class="form-group"><label>状态</label><select id="doc-status"><option value="draft" ' + (doc && doc.status === 'draft' ? 'selected' : '') + '>草稿</option><option value="frozen"' + (doc && doc.status === 'frozen' ? ' selected' : '') + '>冻结</option><option value="released"' + (doc && doc.status === 'released' ? ' selected' : '') + '>发布</option><option value="obsolete"' + (doc && doc.status === 'obsolete' ? ' selected' : '') + '>作废</option></select></div></div>' +
-        '<div class="form-row"><div class="form-group"><label>描述</label><textarea id="doc-description" rows="3" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">' + (doc ? _esc(doc.description || '') : '') + '</textarea></div></div>' +
-        '<div id="doc-cf-edit-area">' + cfHtml + '</div>' +
-        '<div id="doc-att-area"></div>',
-        { footer: '<button class="btn-outline" onclick="UI.closeModal()">取消</button><button class="btn-primary" id="btn-save-doc">保存</button>' +
-          (!isNew ? '<button class="btn-outline" style="margin-left:8px" id="btn-upload-doc-att">上传/替换附件</button>' : ''),
-          afterRender: function() {
-            if (!isNew) Documents._loadDocAttArea(doc.id, doc);
-            document.getElementById('btn-save-doc').onclick = async function() {
-              var code = document.getElementById('doc-code').value.trim();
-              var name = document.getElementById('doc-name').value.trim();
-              var version = document.getElementById('doc-version').value.trim();
-              var status = document.getElementById('doc-status').value;
-              var desc = document.getElementById('doc-description').value.trim();
-              if (!code || !name) { UI.toast('编号和名称为必填', 'warning'); return; }
-              var data = { name: name, version: version, status: status, description: desc || null };
-              try {
-                var result;
-                if (isNew) {
-                  data.id = _uuid();
-                  data.code = code;
-                  result = await API._fetch('POST', '/documents/', data);
-                  UI.toast('图文档创建成功', 'success');
-                } else {
-                  result = await API._fetch('PUT', '/documents/' + id, data);
-                  UI.toast('图文档更新成功', 'success');
-                }
-                var cfVals = _collectCFValuesDoc(cfDefs);
-                var cfDefsForSave = cfDefs;
-                if (Object.keys(cfVals).length > 0 && result.id) {
-                  _saveCFValues('document', result.id, cfVals, cfDefsForSave);
-                }
-                var all = Store.getAll('documents') || [];
-                if (isNew) all.push(result); else { var idx = all.findIndex(function(d) { return d.id === id; }); if (idx >= 0) all[idx] = result; }
-                Store.saveAll('documents', all);
-                UI.closeModal();
-                Documents.render(document.getElementById('content'));
-              } catch (e) { UI.toast('操作失败: ' + (e.message || '未知错误'), 'error'); }
-            };
-            if (!isNew && document.getElementById('btn-upload-doc-att')) {
-              document.getElementById('btn-upload-doc-att').onclick = function() {
-                var input = document.createElement('input');
-                input.type = 'file';
-                input.onchange = function() {
-                  var f = input.files[0];
-                  if (!f) return;
-                  UI._fileToBase64(f, function(b64) {
-                    UI.toast('正在上传...', 'info');
-                    var attData = { id: _uuid(), file_name: f.name, file_data: b64.indexOf(',') > 0 ? b64.split(',')[1] : b64 };
-                    API._fetch('POST', '/documents/' + id + '/attachments', attData).then(function(r) {
-                      UI.toast('附件上传成功', 'success');
-                      var all = Store.getAll('documents') || [];
-                      var docObj = all.find(function(d) { return d.id === id; });
-                      if (docObj) { docObj.file_name = r.file_name; docObj.file_id = r.id; Store.saveAll('documents', all); }
-                      Documents._loadDocAttArea(id, docObj);
-                    }).catch(function(e) { UI.toast('上传失败: ' + e.message, 'error'); });
-                  });
-                };
-                input.click();
-              };
-            }
-          }
-        });
-    }
-  },
-  
-  _loadDocAttArea: function(docId, doc) {
-    var area = document.getElementById('doc-att-area');
-    if (!area) return;
-    area.innerHTML = '<h4 style="margin:16px 0 12px;border-top:1px solid #f0f0f0;padding-top:16px">📎 主附件</h4>' +
-      '<div style="display:flex;align-items:center;margin-bottom:8px;font-size:13px">' +
-        '<span style="flex:1">' + (doc && doc.file_name ? _esc(doc.file_name) : '<span style="color:#999">未上传</span>') + '</span>' +
-        (doc && doc.file_id ? '<button class="btn-link" id="btn-download-doc-att">下载</button><button class="btn-link" style="color:#ff4d4f;margin-left:8px" id="btn-delete-doc-att">删除</button>' : '') +
-      '</div>';
-    var dlBtn = document.getElementById('btn-download-doc-att');
-    if (dlBtn) dlBtn.onclick = function() {
-      API._fetch('GET', '/documents/' + docId + '/attachments/' + doc.file_id).then(function(a) {
-        if (a && a.file_data) UI._downloadBase64(a.file_data, a.file_name);
-        else UI.toast('附件数据为空', 'warning');
-      }).catch(function(e) { UI.toast('下载失败: ' + e.message, 'error'); });
-    };
-    var delBtn = document.getElementById('btn-delete-doc-att');
-    if (delBtn) delBtn.onclick = function() {
-      if (!confirm('确定要删除此附件吗？')) return;
-      API._fetch('DELETE', '/documents/' + docId + '/attachments/' + doc.file_id).then(function() {
-        UI.toast('附件已删除', 'success');
-        var all = Store.getAll('documents') || [];
-        var docObj = all.find(function(d) { return d.id === docId; });
-        if (docObj) { docObj.file_name = null; docObj.file_id = null; Store.saveAll('documents', all); }
-        Documents._loadDocAttArea(docId, null);
-      }).catch(function(e) { UI.toast('删除失败: ' + e.message, 'error'); });
-    };
-  },
-  
   _deleteDoc: function(id) {
     var localDocs = Store.getAll('documents') || [];
     var doc = localDocs.find(function(d) { return d.id === id; });
@@ -429,7 +302,7 @@ function _renderCFEditHtmlDoc(cfValues, cfDefs) {
       html += '<div id="doc-' + d.field_key + '" style="display:flex;flex-wrap:wrap;gap:6px">';
       (d.options || []).forEach(function(opt) {
         var checked = selectedVals.indexOf(opt) >= 0 ? ' checked' : '';
-        html += '<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" name="doc-' + d.field_key + '" value="' + _esc(opt) + '"' + checked + '>' + _esc(opt) + '</label>';
+        html += '<label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer"><input type="checkbox" name="doc-cf-' + d.field_key + '" value="' + _esc(opt) + '"' + checked + '>' + _esc(opt) + '</label>';
       });
       html += '</div>';
     }
@@ -477,7 +350,7 @@ function _saveCFValues(entityType, entityId, cfValues, cfDefs) {
 function _renderCFViewHtml(cfValues, cfDefs, appliesTo) {
   if (!cfDefs || cfDefs.length === 0) return '';
   var applicableDefs = cfDefs.filter(function(d) {
-    return d.applies_to === appliesTo || d.applies_to === 'both';
+    return d.applies_to === appliesTo || (appliesTo !== 'document' && d.applies_to === 'both');
   });
   if (applicableDefs.length === 0) return '';
 
@@ -498,7 +371,7 @@ function _renderCFViewHtml(cfValues, cfDefs, appliesTo) {
     } else {
       displayVal = '<span style="color:#ccc">—</span>';
     }
-    html += '<div class="form-group" style="min-width:200px;flex:1"><label>' + _esc(d.name) + (d.is_required ? ' <span class="required">*</span>' : '') + '</label><div style="padding:6px 0">' + displayVal + '</div></div>';
+    html += '<div class="form-group" style="min-width:200px;flex:1"><label>' + _esc(d.name) + (d.is_required ? ' <span class="required">*</span>' : '') + '</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa">' + displayVal + '</div></div>';
   });
   html += '</div>';
   return html;

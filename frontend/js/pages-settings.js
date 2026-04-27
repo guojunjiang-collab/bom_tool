@@ -1,4 +1,4 @@
-var Settings = {
+﻿var Settings = {
 
   // 系统设置页面
   render: function(c) {
@@ -290,7 +290,7 @@ function _loadCFDefs() {
 function _renderCFViewHtml(cfValues, cfDefs, appliesTo) {
   if (!cfDefs || cfDefs.length === 0) return '';
   var applicableDefs = cfDefs.filter(function(d) {
-    return d.applies_to === appliesTo || d.applies_to === 'both';
+    return d.applies_to === appliesTo || (appliesTo !== 'document' && d.applies_to === 'both');
   });
   if (applicableDefs.length === 0) return '';
 
@@ -327,7 +327,7 @@ function _renderCFViewHtml(cfValues, cfDefs, appliesTo) {
 function _renderCFEditHtml(cfValues, cfDefs, appliesTo, roAttr) {
   if (!cfDefs || cfDefs.length === 0) return '';
   var applicableDefs = cfDefs.filter(function(d) {
-    return d.applies_to === appliesTo || d.applies_to === 'both';
+    return d.applies_to === appliesTo || (appliesTo !== 'document' && d.applies_to === 'both');
   });
   if (applicableDefs.length === 0) return '';
 
@@ -372,7 +372,7 @@ function _renderCFEditHtml(cfValues, cfDefs, appliesTo, roAttr) {
 function _collectCFValues(cfDefs, appliesTo) {
   if (!cfDefs || cfDefs.length === 0) return {};
   var applicableDefs = cfDefs.filter(function(d) {
-    return d.applies_to === appliesTo || d.applies_to === 'both';
+    return d.applies_to === appliesTo || (appliesTo !== 'document' && d.applies_to === 'both');
   });
   var values = {};
   applicableDefs.forEach(function(d) {
