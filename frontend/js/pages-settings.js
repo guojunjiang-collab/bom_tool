@@ -11,12 +11,11 @@ var Settings = {
 
       // ===== 自定义字段管理卡片 =====
       '<div class="card"><div class="card-header">自定义字段管理</div><div class="card-body" id="cf-card-body">' +
-      '<div style="text-align:center;padding:20px;color:var(--text-light)">加载中...</div>' +
-      '</div></div>' +
+          '<div style="text-align:center;padding:20px;color:var(--text-light)">加载中...</div>' +
+        '</div></div>' +
 
       '<div class="card" style="margin-top:16px"><div class="card-header">数据管理</div><div class="card-body" style="display:flex;gap:12px"><button class="btn-outline" onclick="Settings._exportAll()">📦 导出全部数据</button><button class="btn-danger" onclick="Settings._clearAll()">🗑️ 重置系统数据</button></div></div>';
 
-      // 加载自定义字段定义
       loadCustomFields();
     }
 
@@ -36,7 +35,7 @@ var Settings = {
       if (!body) return;
 
       var typeLabels = { text: '文本', number: '数字', select: '单选', multiselect: '多选' };
-      var appliesLabels = { part: '零件', component: '部件', both: '零件+部件' };
+      var appliesLabels = { part: '零件', component: '部件', document: '图文档', both: '零件+部件' };
 
       var html = '<div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">' +
         '<span style="font-size:13px;color:var(--text-secondary)">已定义 ' + cfDefs.length + ' 个自定义字段</span>' +
@@ -92,6 +91,7 @@ var Settings = {
   },
 
   // ===== 自定义字段管理 =====
+  // 图文档自定义字段通过 applies_to='document' 配置，与零件/部件共用自定义字段系统
 
   _editCF: function(id) {
     var existing = id ? null : null;  // 从 cfDefs 中查找
@@ -109,7 +109,7 @@ var Settings = {
 
     var isNew = !cf;
     var typeOptions = { text: '文本', number: '数字', select: '单选', multiselect: '多选' };
-    var appliesOptions = { part: '零件', component: '部件', both: '零件+部件' };
+    var appliesOptions = { part: '零件', component: '部件', document: '图文档', both: '零件+部件' };
 
     var optionsHtml = '';
     if (cf && (cf.field_type === 'select' || cf.field_type === 'multiselect') && cf.options) {
@@ -226,7 +226,7 @@ var Settings = {
 
   _exportAll: function() {
     var all = {};
-    ['parts','components','bom','users'].forEach(function(k) { all[k] = Store.getAll(k); });
+    ['parts','components','bom','users','documents'].forEach(function(k) { all[k] = Store.getAll(k); });
     var json = JSON.stringify(all, null, 2);
     var blob = new Blob([json], { type: 'application/json' });
     var a = document.createElement('a');
@@ -237,7 +237,7 @@ var Settings = {
   },
 
   _clearAll: function() {
-    UI.confirm('⚠️ 此操作将清除所有业务数据（零件、部件、BOM、附件、日志、自定义字段值），<strong>保留用户账号和系统设置</strong>（字典、自定义字段定义）。<br><br>本地与服务器的数据都将被清除，确定继续吗？', async function() {
+    UI.confirm('⚠️ 此操作将清除所有业务数据（零件、部件、BOM、附件、图文档、日志、自定义字段值），<strong>保留用户账号和系统设置</strong>（字典、自定义字段定义）。<br><br>本地与服务器的数据都将被清除，确定继续吗？', async function() {
       try {
         // 1. 调用后端API清除服务器数据
         await API.resetBusinessData();
@@ -264,6 +264,7 @@ var Settings = {
       }
     });
   }
+  // 清除缓存的入口已合并至主界面右上角的按钮中，无额外实现
 };
 
 // ===== 自定义字段工具函数（全局） =====
@@ -284,7 +285,7 @@ function _loadCFDefs() {
  * 渲染自定义字段的只读展示 HTML
  * @param {object} cfValues - { field_key: value, ... } 格式的字段值
  * @param {array} cfDefs - 字段定义列表
- * @param {string} appliesTo - 'part' 或 'component'
+ * @param {string} appliesTo - 'part' 或 'component' 或 'document'
  */
 function _renderCFViewHtml(cfValues, cfDefs, appliesTo) {
   if (!cfDefs || cfDefs.length === 0) return '';
@@ -320,7 +321,7 @@ function _renderCFViewHtml(cfValues, cfDefs, appliesTo) {
  * 渲染自定义字段的编辑表单 HTML
  * @param {object} cfValues - 当前字段值
  * @param {array} cfDefs - 字段定义列表
- * @param {string} appliesTo - 'part' 或 'component'
+ * @param {string} appliesTo - 'part' 或 'component' 或 'document'
  * @param {string} roAttr - readonly 属性（非草稿时）
  */
 function _renderCFEditHtml(cfValues, cfDefs, appliesTo, roAttr) {
@@ -365,7 +366,7 @@ function _renderCFEditHtml(cfValues, cfDefs, appliesTo, roAttr) {
 /**
  * 从编辑表单中收集自定义字段值
  * @param {array} cfDefs - 字段定义列表
- * @param {string} appliesTo - 'part' 或 'component'
+ * @param {string} appliesTo - 'part' 或 'component' 或 'document'
  * @returns {object} { field_key: value, ... }
  */
 function _collectCFValues(cfDefs, appliesTo) {
@@ -393,7 +394,7 @@ function _collectCFValues(cfDefs, appliesTo) {
 
 /**
  * 保存自定义字段值到服务器
- * @param {string} entityType - 'part' 或 'component'
+ * @param {string} entityType - 'part' 或 'component' 或 'document'
  * @param {string} entityId - 实体ID
  * @param {object} cfValues - { field_key: value }
  * @param {array} cfDefs - 字段定义列表

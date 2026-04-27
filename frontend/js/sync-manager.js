@@ -93,6 +93,10 @@ const SyncManager = {
           }
 
           toRemove.forEach(function(k) { localStorage.removeItem(k); });
+          // 同步完成本地缓存清理后，清除在内存中的相关缓存（图文档、自定义字段等）
+          if (window.Store && typeof window.Store.clearLocalDocAndCFCache === 'function') {
+            try { window.Store.clearLocalDocAndCFCache(); } catch (e) { /* ignore */ }
+          }
 
           // 重置同步队列
 
@@ -166,7 +170,7 @@ const SyncManager = {
 
   _updateResults: function(results) {
 
-    var entities = ['parts', 'components', 'users', 'dict_materials', 'custom_field_defs'];
+    var entities = ['parts', 'components', 'documents', 'users', 'custom_field_defs'];
 
     entities.forEach(function(entity) {
 
@@ -252,11 +256,9 @@ const SyncManager = {
 
         { key: 'components', label: '部件', apiFn: 'getAssemblies', uploadFn: 'createAssembly', updateFn: 'updateAssembly' },
 
-        { key: 'bom_items', label: 'BOM关系', apiFn: 'getAllBomItems', uploadFn: null, updateFn: null },
+        { key: 'documents', label: '图文档', apiFn: 'getDocuments', uploadFn: 'createDocument', updateFn: 'updateDocument' },
 
         { key: 'users', label: '用户', apiFn: 'getUsers', uploadFn: 'createUser', updateFn: 'updateUser' },
-
-        { key: 'dict_materials', label: '材质字典', apiFn: 'getDict', apiArg: 'materials', uploadFn: 'createDict', updateFn: 'updateDict', dictType: 'materials' },
 
         { key: 'custom_field_defs', label: '自定义字段', apiFn: 'getCustomFieldDefinitions', uploadFn: null, updateFn: null }
 
@@ -268,7 +270,7 @@ const SyncManager = {
 
       var processedCount = 0;
 
-      var results = { parts: { total: 0, success: 0, failed: 0 }, components: { total: 0, success: 0, failed: 0 }, bom_items: { total: 0, success: 0, failed: 0 }, users: { total: 0, success: 0, failed: 0 }, dict_materials: { total: 0, success: 0, failed: 0 }, custom_field_defs: { total: 0, success: 0, failed: 0 } };
+      var results = { parts: { total: 0, success: 0, failed: 0 }, components: { total: 0, success: 0, failed: 0 }, documents: { total: 0, success: 0, failed: 0 }, users: { total: 0, success: 0, failed: 0 }, custom_field_defs: { total: 0, success: 0, failed: 0 } };
 
 
 
@@ -626,7 +628,7 @@ var serverTime = converted.updatedAt || 0;
 
         if (localAdded.length > 0) {
 
-          var label = cent.key === 'components' ? '部件' : cent.key === 'parts' ? '零件' : cent.label || cent.key;
+          var label = cent.key === 'components' ? '部件' : cent.key === 'parts' ? '零件' : cent.key === 'documents' ? '图文档' : cent.label || cent.key;
 
           conflictMsgs.push('本地新增 ' + label + ' ' + localAdded.length + ' 条（请确认后再同步）');
 
@@ -670,7 +672,7 @@ var serverTime = converted.updatedAt || 0;
 
         // 显示提示（仅拉取，无需上传）
 
-        var totalPulled = results.parts.success + results.components.success + results.users.success;
+        var totalPulled = results.parts.success + results.components.success + results.documents.success + results.users.success;
 
         var msg = '同步完成：已从服务器检出 ' + totalPulled + ' 条';
 

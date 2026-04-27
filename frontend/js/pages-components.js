@@ -443,15 +443,26 @@ var Components = {
 
       '<h4 style="margin-bottom:12px">子项列表 (' + (sortedParts||[]).length + '种)</h4>' +
 
-      '<div class="tabs" id="comp-tabs"><div class="tab active" data-t="tree">🌲 树形视图</div><div class="tab" data-t="table">📊 表格视图</div><div class="tab" data-t="attachment">📎 附件</div></div>' +
+      '<div class="tabs" id="comp-tabs"><div class="tab active" data-t="tree">🌲 树形视图</div><div class="tab" data-t="table">📊 表格视图</div><div class="tab" data-t="attachment">📎 关联图文档</div></div>' +
 
       '<div id="comp-tree-view"><div class="tree-view" style="max-height:400px;overflow-y:auto;color:#333"><div style="display:grid;grid-template-columns:50px 80px 1fr 1fr 1fr 60px 60px 60px;padding:8px 10px;background:#fafafa;font-weight:600;border-bottom:1px solid #e8e8e8"><span>层级</span><span>类型</span><span>件号</span><span>中文名称</span><span>规格型号</span><span>版本</span><span>状态</span><span>用量</span></div>' + buildTree(sortedParts, 1, 6) + '</div></div>' +
 
       '<div id="comp-table-view" style="display:none"><div class="table-wrapper" style="max-height:400px;overflow-y:auto;color:#333"><table><thead><tr><th style="width:50px;font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">层级</th><th style="width:80px;font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">类型</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">件号</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">中文名称</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">规格型号</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">版本</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">状态</th><th style="font-weight:600;padding:8px 10px;border-bottom:1px solid #e8e8e8;text-align:left">用量</th></tr></thead><tbody>' + (tableHtml || '<tr><td colspan="8" style="text-align:center;color:#333">暂无数据</td></tr>') + '</tbody></table></div></div>' +
 
-      '<div id="comp-attachment-view" style="display:none"><div class="attachment-view" style="padding:16px;background:#f9f9f9;border-radius:4px;margin-top:8px">' + Components._renderAttachmentsView(comp) + '</div></div>',
+      '<div id="comp-attachment-view" style="display:none"><div class="attachment-view" style="padding:16px;background:#f9f9f9;border-radius:4px;margin-top:8px" id="comp-view-edocs-area">' + Components._renderAttachmentsView(comp) + '</div></div>',
 
-      { large: true, footer: '<button class="btn-primary" id="btn-comp-detail-close" onclick="UI.closeModal()">关闭</button>' });
+      { large: true, footer: '<button class="btn-primary" id="btn-comp-detail-close" onclick="UI.closeModal()">关闭</button>',
+        afterRender: function() {
+          API._fetch('GET', '/assemblies/' + comp.id + '/documents').then(function(list) {
+            comp._entityDocs = list;
+            var allComps = Store.getAll('components');
+            var cIdx = allComps.findIndex(function(c) { return c.id === comp.id; });
+            if (cIdx >= 0) allComps[cIdx]._entityDocs = list;
+            var area = document.getElementById('comp-view-edocs-area');
+            if (area) area.innerHTML = Components._renderAttachmentsView(comp);
+          });
+        }
+      });
 
     document.querySelectorAll('#comp-tabs .tab').forEach(function(t) {
 
@@ -555,9 +566,80 @@ var Components = {
 
       { footer: '<button class="btn-outline" onclick="UI.closeModal()">取消</button>' + (comp && (comp.status === 'released' || comp.status === 'obsolete') ? '<button class="btn-primary" onclick="Components._upgradeComp(\'' + comp.id + '\')">升版</button>' : '') + '<button class="btn-primary" id="btn-sc">保存</button>', large: true,
         afterRender: function() {
+          // 加载附件列表（编辑时）
           if (comp && comp.id) {
             Components._loadAttachmentsForEdit(comp);
           }
+          // 加载自定义字段编辑区
+          _loadCFDefs().then(function(cfDefs) {
+            var cfArea = document.getElementById('cf-comp-edit-area');
+            if (!cfArea) return;
+            var cfValues = comp ? (comp.customFields || {}) : {};
+            cfArea.innerHTML = _renderCFEditHtml(cfValues, cfDefs, 'component', ro);
+          });
+          // 保存按钮事件
+          document.getElementById('btn-sc').onclick = function() {
+            var code = document.getElementById('fc-code').value.trim();
+            var name = document.getElementById('fc-name').value.trim();
+            if (!code || !name) { UI.toast('件号和中文名称为必填项', 'warning'); return; }
+            var dup = Store.getAll('components').find(function(c2) { return c2.code === code && c2.version === (comp ? comp.version : 'A') && (!comp || c2.id !== comp.id); });
+            if (dup) { UI.toast('该件号+版本组合已存在', 'error'); return; }
+            if (comp && !canE) { UI.alert('您没有权限编辑此部件'); return; }
+            var rawItems = window._editCompData || [];
+            var parts = rawItems.map(function(item) {
+              if (item.partId !== undefined && item.childType === undefined) return item;
+              if (item.childType === 'component') {
+                return { childType: 'component', componentId: item.componentId || '', quantity: item.quantity || 1 };
+              } else {
+                return { childType: 'part', partId: item.partId || '', quantity: item.quantity || 1 };
+              }
+            }).filter(function(p) { return p.partId || p.componentId; });
+            var newV = comp ? comp.version : 'A';
+            var data = {
+              code:code, name:name,
+              spec:document.getElementById('fc-spec').value.trim(),
+              status:document.getElementById('fc-st').value,
+              parts:parts,
+              version:newV
+            };
+            if (comp) {
+              var _compFieldLabels = { code:'件号', name:'中文名称', spec:'规格型号', status:'状态' };
+              var _compTrackFields = ['code','name','spec','status'];
+              var _compChanges = [];
+              _compTrackFields.forEach(function(f) {
+                var oldVal = (comp[f] || '').toString();
+                var newVal = (data[f] || '').toString();
+                if (oldVal !== newVal) { _compChanges.push({ field: _compFieldLabels[f] || f, oldVal: oldVal, newVal: newVal }); }
+              });
+              var oldPartsJson = JSON.stringify(comp.parts || []);
+              var newPartsJson = JSON.stringify(data.parts || []);
+              if (oldPartsJson !== newPartsJson) { _compChanges.push({ field: '子项列表', oldVal: (comp.parts||[]).length + '项', newVal: (data.parts||[]).length + '项' }); }
+              if (_compChanges.length > 0) {
+                var compRevisions = comp.revisions || [];
+                compRevisions.push({ date: Date.now(), author: Auth.getUser() ? Auth.getUser().realName : '未知', changes: _compChanges });
+                data.revisions = compRevisions;
+              }
+              Store.update('components', comp.id, data); Store.addLog('编辑部件', '修改部件 ' + code);
+              var cfDefsForSave = Store.getAll('custom_field_defs');
+              var cfVals = _collectCFValues(cfDefsForSave, 'component');
+              Store.update('components', comp.id, { customFields: cfVals }, { skipSync: true });
+              _saveCFValues('component', comp.id, cfVals, cfDefsForSave);
+              UI.toast('部件更新成功', 'success');
+            } else {
+              data.revisions = [];
+              Store.add('components', data); Store.addLog('新增部件', '新增部件 ' + code + ' - ' + name);
+              var cfDefsForSave2 = Store.getAll('custom_field_defs');
+              var cfVals2 = _collectCFValues(cfDefsForSave2, 'component');
+              if (Object.keys(cfVals2).length > 0) {
+                data.customFields = cfVals2;
+                Store.update('components', data.id, { customFields: cfVals2 }, { skipSync: true });
+                _saveCFValues('component', data.id, cfVals2, cfDefsForSave2);
+              }
+              UI.toast('部件新增成功', 'success');
+            }
+            window._editCompData = null;
+            UI.closeModal(); Router.render();
+          };
         }
       });
 
@@ -565,133 +647,7 @@ var Components = {
 
     window._editCompData = JSON.parse(JSON.stringify(comp && comp.parts ? comp.parts : []));
 
-    document.getElementById('btn-add-child').onclick = function() { Components._showChildSelector(id); };
-
-    // 加载自定义字段编辑区
-    _loadCFDefs().then(function(cfDefs) {
-      var cfArea = document.getElementById('cf-comp-edit-area');
-      if (!cfArea) return;
-      var cfValues = comp ? (comp.customFields || {}) : {};
-      cfArea.innerHTML = _renderCFEditHtml(cfValues, cfDefs, 'component', ro);
-    });
-
-    document.getElementById('btn-sc').onclick = function() {
-
-      var code = document.getElementById('fc-code').value.trim();
-
-      var name = document.getElementById('fc-name').value.trim();
-
-      if (!code || !name) { UI.toast('件号和中文名称为必填项', 'warning'); return; }
-
-      var dup = Store.getAll('components').find(function(c2) { return c2.code === code && c2.version === (comp ? comp.version : 'A') && (!comp || c2.id !== comp.id); });
-
-      if (dup) { UI.toast('该件号+版本组合已存在', 'error'); return; }
-
-      if (comp && !canE) { UI.alert('您没有权限编辑此部件'); return; }
-
-      var rawItems = window._editCompData || [];
-
-      var parts = rawItems.map(function(item) {
-
-        if (item.partId !== undefined && item.childType === undefined) return item;
-
-        if (item.childType === 'component') {
-
-          return { childType: 'component', componentId: item.componentId || '', quantity: item.quantity || 1 };
-
-        } else {
-
-          return { childType: 'part', partId: item.partId || '', quantity: item.quantity || 1 };
-
-        }
-
-      }).filter(function(p) { return p.partId || p.componentId; });
-
-      var newV = comp ? comp.version : 'A';
-
-      var data = {
-        code:code, name:name,
-        spec:document.getElementById('fc-spec').value.trim(),
-        status:document.getElementById('fc-st').value,
-        parts:parts,
-        version:newV
-      };
-
-      if (comp) {
-
-        var _compFieldLabels = { code:'件号', name:'中文名称', spec:'规格型号', status:'状态' };
-
-        var _compTrackFields = ['code','name','spec','status'];
-
-        var _compChanges = [];
-
-        _compTrackFields.forEach(function(f) {
-
-          var oldVal = (comp[f] || '').toString();
-
-          var newVal = (data[f] || '').toString();
-
-          if (oldVal !== newVal) {
-
-            _compChanges.push({ field: _compFieldLabels[f] || f, oldVal: oldVal, newVal: newVal });
-
-          }
-
-        });
-
-
-
-        var oldPartsJson = JSON.stringify(comp.parts || []);
-
-        var newPartsJson = JSON.stringify(data.parts || []);
-
-        if (oldPartsJson !== newPartsJson) {
-
-          _compChanges.push({ field: '子项列表', oldVal: (comp.parts||[]).length + '项', newVal: (data.parts||[]).length + '项' });
-
-        }
-
-        if (_compChanges.length > 0) {
-
-          var compRevisions = comp.revisions || [];
-
-          compRevisions.push({ date: Date.now(), author: Auth.getUser() ? Auth.getUser().realName : '未知', changes: _compChanges });
-
-          data.revisions = compRevisions;
-
-        }
-
-        Store.update('components', id, data); Store.addLog('编辑部件', '修改部件 ' + code);
-        // 保存自定义字段值
-        var cfDefsForSave = Store.getAll('custom_field_defs');
-        var cfVals = _collectCFValues(cfDefsForSave, 'component');
-        Store.update('components', id, { customFields: cfVals }, { skipSync: true });
-        _saveCFValues('component', id, cfVals, cfDefsForSave);
-        UI.toast('部件更新成功', 'success');
-
-      } else {
-
-        data.revisions = [];
-
-        Store.add('components', data); Store.addLog('新增部件', '新增部件 ' + code + ' - ' + name);
-      // 删除：不再记录 revisions 历史
-        // 新增部件后保存自定义字段值
-        var cfDefsForSave2 = Store.getAll('custom_field_defs');
-        var cfVals2 = _collectCFValues(cfDefsForSave2, 'component');
-        if (Object.keys(cfVals2).length > 0) {
-          data.customFields = cfVals2;
-          Store.update('components', data.id, { customFields: cfVals2 }, { skipSync: true });
-          _saveCFValues('component', data.id, cfVals2, cfDefsForSave2);
-        }
-        UI.toast('部件新增成功', 'success');
-
-      }
-
-      window._editCompData = null;
-
-      UI.closeModal(); Router.render();
-
-    };
+    document.getElementById('btn-add-child').onclick = function() { Components._showChildSelector(comp ? comp.id : null); };
 
   },
 
@@ -1418,26 +1374,18 @@ var Components = {
 
   // 渲染附件显示（详情页）
   _renderAttachmentsView: function(comp) {
-    var html = '';
-    var attFields = [
-      { name: 'sourceFile', nameId: 'sourceFileId', label: '源文件' },
-      { name: 'drawing', nameId: 'drawingId', label: '图纸' },
-      { name: 'stp', nameId: 'stpId', label: 'STP' },
-      { name: 'pdf', nameId: 'pdfId', label: 'PDF' }
-    ];
-    attFields.forEach(function(f) {
-      var attName = comp[f.name];
-      var attId = comp[f.nameId];
-      html += '<div style="display:flex;align-items:center;margin-bottom:8px;font-size:13px">';
-      html += '<span style="width:60px;flex-shrink:0">' + f.label + '</span>';
-      if (attName && attId) {
-        html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + _esc(attName || '') + '">' + _esc(attName || '(无名称)') + '</span>';
-        html += '<button type="button" class="btn-link" onclick="Components._downloadAttachment(\'' + attId + '\')">下载</button>';
-      } else {
-        html += '<span style="flex:1;color:#999">未上传</span>';
-      }
-      html += '</div>';
+    var edocList = (comp._entityDocs || []);
+    var html = '<h4 style="margin:20px 0 12px">📎 关联图文档</h4>';
+    if (edocList.length === 0) {
+      html += '<div style="padding:12px;text-align:center;color:#999;font-size:13px">暂无关联图文档</div>';
+      return html;
+    }
+    html += '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#fafafa"><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">文本档编号</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">文本档名称</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">版本</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">主附件</th></tr></thead><tbody>';
+    edocList.forEach(function(ed) {
+      var d = ed.document || {};
+      html += '<tr style="border-bottom:1px solid #f0f0f0"><td style="padding:6px 10px;font-weight:500">' + _esc(d.code || '') + '</td><td style="padding:6px 10px">' + _esc(d.name || '') + '</td><td style="padding:6px 10px">' + _esc(d.version || '') + '</td><td style="padding:6px 10px">' + (d.file_name ? _esc(d.file_name) : '<span style="color:#ccc">—</span>') + '</td></tr>';
     });
+    html += '</tbody></table>';
     return html;
   },
 
@@ -1445,111 +1393,112 @@ var Components = {
   _loadAttachmentsForEdit: function(comp) {
     var container = document.getElementById('comp-attachments-area');
     if (!container) return;
-    comp = comp || {};
-    var html = '<h4 style="margin:16px 0 12px;border-top:1px solid #f0f0f0;padding-top:16px">📎 附件</h4>';
-    var attFields = [
-      { name: 'sourceFile', nameId: 'sourceFileId', label: '源文件' },
-      { name: 'drawing', nameId: 'drawingId', label: '图纸' },
-      { name: 'stp', nameId: 'stpId', label: 'STP' },
-      { name: 'pdf', nameId: 'pdfId', label: 'PDF' }
-    ];
-    attFields.forEach(function(f) {
-      var attName = comp ? comp[f.name] : null;
-      var attId = comp ? comp[f.nameId] : null;
-      html += '<div style="display:flex;align-items:center;margin-bottom:8px;font-size:13px">';
-      html += '<span style="width:60px;flex-shrink:0">' + f.label + '</span>';
-      if (attName && attId) {
-        html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:50px" title="' + _esc(attName || '') + '">' + _esc(attName || '(无名称)') + '</span>';
-        html += '<button type="button" class="btn-link" onclick="Components._downloadAttachment(\'' + attId + '\')">下载</button>';
-        html += '<button type="button" class="btn-link" style="color:#ff4d4f" onclick="Components._deleteAttachment(\'' + comp.id + '\',\'' + f.name + '\',\'' + f.nameId + '\')">删除</button>';
+
+    function render(edocs) {
+      var html = '<h4 style="margin:16px 0 12px;border-top:1px solid #f0f0f0;padding-top:16px">📎 关联图文档</h4>' +
+        '<div id="comp-edoc-list-area"></div>' +
+        '<button class="btn-outline btn-sm" id="comp-btn-add-edoc" style="margin-top:8px">+ 关联图文文档</button>';
+      container.innerHTML = html;
+
+      var listArea = document.getElementById('comp-edoc-list-area');
+      if (!edocs || edocs.length === 0) {
+        listArea.innerHTML = '<div style="padding:12px;text-align:center;color:#999;font-size:13px">暂无关联，点击下方"关联文本档"添加</div>';
       } else {
-        html += '<span style="flex:1;color:#999">未上传</span>';
-        html += '<input type="file" id="comp-att-' + f.name + '" style="display:none" onchange="Components._onAttachmentChange(\'' + comp.id + '\',\'' + f.name + '\',\'' + f.nameId + '\',this)">';
-        html += '<button type="button" class="btn-link" onclick="document.getElementById(\'comp-att-' + f.name + '\').click()">上传</button>';
-      }
-      html += '</div>';
-    });
-    container.innerHTML = html;
-  },
-
-// 附件上传（部件）
-  _onAttachmentChange: function(compId, fieldName, fieldIdName, input) {
-    var file = input.files[0];
-    if (!file) return;
-    UI._fileToBase64(file, function(base64) {
-      Store._uploadProgress = { percent: 0, fileName: file.name };
-      Store._currentTask = { entity: 'attachment', op: 'upload', record: { code: file.name } };
-      SyncPanel.updatePanel();
-      API.uploadAttachment(file.name, base64).then(function(result) {
-        var attId = result.id;
-        var updateData = {};
-        updateData[fieldName] = file.name;
-        updateData[fieldIdName] = attId;
-
-        var comps = Store.getAll('components');
-        var idx = comps.findIndex(function(c) { return c.id === compId; });
-        if (idx !== -1) {
-           Object.assign(comps[idx], updateData, { updatedAt: Date.now() });
-           Store.saveAll('components', comps);
-           Store._enqueue('update', 'components', comps[idx], {});
-           Components._loadAttachmentsForEdit(comps[idx]);
-        } else {
-           console.error('部件未找到:', compId);
-           UI.toast('更新失败', 'error');
-        }
-
-        // 同步队列外立即调用 API，确保后端即时更新
-        var apiMap = { sourceFile: 'source_file', drawing: 'drawing', stp: 'stp', pdf: 'pdf' };
-        var apiIdMap = { sourceFile: 'source_file_id', drawing: 'drawing_id', stp: 'stp_id', pdf: 'pdf_id' };
-        var apiUpdate = {};
-        apiUpdate[apiMap[fieldName]] = file.name;
-        apiUpdate[apiIdMap[fieldName]] = attId;
-        API.updateAssembly(compId, apiUpdate).catch(function(err) {
-          console.warn('直接API更新失败，同步队列将继续重试:', err);
+        edocs.forEach(function(ed) {
+          var d = ed.document || {};
+          var row = document.createElement('div');
+          row.style.cssText = 'display:flex;align-items:center;margin-bottom:6px;font-size:13px;gap:8px';
+          row.innerHTML =
+            '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500" title="' + _esc(d.code || '') + '">' + _esc(d.code || '') + ' · ' + _esc(d.name || '') + '</span>' +
+            '<span style="color:#999;font-size:12px">' + _esc(d.version || '') + '</span>' +
+            '<button class="btn-link comp-edoc-remove-btn" data-id="' + ed.id + '" style="color:#ff4d4f">移除</button>';
+          listArea.appendChild(row);
         });
-
-        Store._uploadProgress = null;
-        Store._currentTask = null;
-        UI.toast('附件上传成功', 'success');
-        SyncPanel.updatePanel();
-      }).catch(function(err) {
-        Store._uploadProgress = null;
-        Store._currentTask = null;
-        console.error('附件上传失败', err);
-        UI.toast('附件上传失败: ' + (err.message || err), 'error');
-        SyncPanel.updatePanel();
-      });
-    });
-  },
-
-  // 下载附件（部件）
-  _downloadAttachment: function(attachmentId) {
-    API.getAttachment(attachmentId).then(function(att) {
-      if (att && att.file_data) {
-        UI._downloadBase64(att.file_data, att.file_name || '附件');
-      } else {
-        UI.toast('附件数据为空', 'warning');
+        listArea.querySelectorAll('.comp-edoc-remove-btn').forEach(function(btn) {
+          btn.onclick = function() {
+            var eid = btn.dataset.id;
+            API._fetch('DELETE', '/assemblies/' + comp.id + '/documents/' + eid).then(function() {
+              UI.toast('关联已移除', 'success');
+              API._fetch('GET', '/assemblies/' + comp.id + '/documents').then(function(list) {
+                render(list);
+                var allComps = Store.getAll('components');
+                var cIdx = allComps.findIndex(function(c) { return c.id === comp.id; });
+                if (cIdx >= 0) allComps[cIdx]._entityDocs = list;
+              });
+            }).catch(function(e) { UI.toast('移除失败: ' + e.message, 'error'); });
+          };
+        });
+        // 移除类别输入控件及其监听
       }
-    }).catch(function(err) {
-      UI.toast('下载失败: ' + (err.message || err), 'error');
-    });
+
+      document.getElementById('comp-btn-add-edoc').onclick = function() { Components._showDocSelector(comp.id); };
+    }
+
+    API._fetch('GET', '/assemblies/' + comp.id + '/documents').then(function(list) {
+      var allComps = Store.getAll('components');
+      var cIdx = allComps.findIndex(function(c) { return c.id === comp.id; });
+      if (cIdx >= 0) allComps[cIdx]._entityDocs = list;
+      Store.saveAll('components', allComps);
+      render(list);
+    }).catch(function() { render([]); });
   },
 
-  // 删除附件（部件）
-  _deleteAttachment: function(compId, fieldName, fieldIdName) {
-    if (!confirm('确定要删除此附件吗？')) return;
-    var comp = Store.getById('components', compId);
-    if (!comp) return;
-    var attId = comp[fieldIdName];
-    if (attId) {
-      API.deleteAttachment(attId).catch(function() {});
-    }
-    var updateData = {};
-    updateData[fieldName] = null;
-    updateData[fieldIdName] = null;
-    Store.update('components', compId, updateData);
-    UI.toast('附件已删除', 'success');
-    Components._loadAttachmentsForEdit(Store.getById('components', compId));
+  _showDocSelector: function(compId) {
+    var selectedDocs = [];
+    var docs = [];
+    API._fetch('GET', '/documents/').then(function(allDocs) {
+      docs = allDocs || [];
+      var html = '<input type="text" id="comp-doc-sel-search" class="form-input" placeholder="搜索编号或名称..." style="margin-bottom:8px">' +
+        '<div id="comp-doc-sel-list" style="max-height:300px;overflow-y:auto"></div>';
+      UI.modal('选择图文档', html, {
+        footer: '<button class="btn-outline" onclick="UI.closeModal()">取消</button><button class="btn-primary" id="comp-btn-confirm-edoc">确认关联</button>',
+        afterRender: function() {
+          function renderList(kw) {
+            var list = docs.filter(function(d) {
+              if (!kw) return true;
+              return (d.code && d.code.toLowerCase().indexOf(kw) !== -1) || (d.name && d.name.toLowerCase().indexOf(kw) !== -1);
+            });
+            var el = document.getElementById('comp-doc-sel-list');
+            if (list.length === 0) { el.innerHTML = '<div style="padding:20px;text-align:center;color:#999">无匹配结果</div>'; return; }
+            el.innerHTML = list.map(function(d) {
+              var checked = selectedDocs.indexOf(d.id) >= 0 ? ' checked' : '';
+              return '<label style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid #f0f0f0;cursor:pointer"><input type="checkbox" value="' + d.id + '"' + checked + '><span style="flex:1"><strong>' + _esc(d.code) + '</strong> · ' + _esc(d.name) + '</span><span style="color:#999;font-size:12px">' + _esc(d.version) + '</span></label>';
+            }).join('');
+          }
+          renderList();
+          document.getElementById('comp-doc-sel-search').oninput = function() { renderList(this.value.trim().toLowerCase()); };
+          document.getElementById('comp-btn-confirm-edoc').onclick = function() {
+            var checks = document.querySelectorAll('#comp-doc-sel-list input[type=checkbox]:checked');
+            var ids = Array.from(checks).map(function(c) { return c.value; }).filter(function(id) { return id; });
+            if (ids.length === 0) { UI.toast('至少选择一个图文档', 'warning'); return; }
+            // 去重：避免重复关联同一个图文档
+            // 获取当前部件的已关联文档ID
+            var existingComp = (Store.getAll('components') || []).find(function(c){ return c.id === compId; });
+            var existingDocIds = [];
+            if (existingComp && existingComp._entityDocs) {
+              existingDocIds = existingComp._entityDocs.map(function(ed) {
+                var d = ed.document || {};
+                return d.id || ed.document_id || null;
+              }).filter(function(x){ return !!x; });
+            }
+            var toAdd = ids.filter(function(id){ return existingDocIds.indexOf(id) < 0; });
+            if (toAdd.length === 0) {
+              UI.toast('所选图文文档已关联，请勿重复关联', 'info');
+              return;
+            }
+            var promises = toAdd.map(function(docId) {
+              return API._fetch('POST', '/assemblies/' + compId + '/documents', { id: _uuid(), document_id: docId, sort_order: 0 });
+            });
+            Promise.all(promises).then(function() {
+              UI.toast('关联成功', 'success');
+              var comp = Store.getById('components', compId);
+              if (comp) Components._loadAttachmentsForEdit(comp);
+              UI.closeModal();
+            }).catch(function(e) { UI.toast('关联失败: ' + e.message, 'error'); });
+          };
+        }
+      });
+    }).catch(function(e) { UI.toast('获取文本档列表失败: ' + e.message, 'error'); });
   }
 };
 

@@ -35,6 +35,8 @@ const Store = {
 
     components: { create: 'createAssembly', update: 'updateAssembly', delete: 'deleteAssembly', plural: 'getAssemblies', key: 'code' },
 
+    documents:  { create: 'createDocument', update: 'updateDocument', delete: 'deleteDocument', plural: 'getDocuments', key: 'code' },
+
     users:      { create: 'createUser',  update: 'updateUser',  delete: 'deleteUser',  plural: 'getUsers',     key: 'username' },
 
   },
@@ -47,28 +49,12 @@ _fieldMap: {
     parts:      {
       status: 'status',
       createdAt: 'created_at',
-      updatedAt: 'updated_at',
-      sourceFile: 'source_file',
-      sourceFileId: 'source_file_id',
-      drawing: 'drawing',
-      drawingId: 'drawing_id',
-      stp: 'stp',
-      stpId: 'stp_id',
-      pdf: 'pdf',
-      pdfId: 'pdf_id'
+      updatedAt: 'updated_at'
     },
     components: {
       version: 'version',
       createdAt: 'created_at',
-      updatedAt: 'updated_at',
-      sourceFile: 'source_file',
-      sourceFileId: 'source_file_id',
-      drawing: 'drawing',
-      drawingId: 'drawing_id',
-      stp: 'stp',
-      stpId: 'stp_id',
-      pdf: 'pdf',
-      pdfId: 'pdf_id'
+      updatedAt: 'updated_at'
     },
     bom_items:  { childId: 'child_id', childType: 'child_type', partId: 'part_id', componentId: 'component_id', quantity: 'quantity', parentType: 'parent_type', parentId: 'parent_id', createdAt: 'created_at' },
 
@@ -80,6 +66,58 @@ _fieldMap: {
 
 
   // 入队：本地操作完成后自动触发后台同步
+
+  // 清除本地缓存的图文档与自定义字段数据
+  // 作用：当用户点击“清除缓存”时，除了清除通用缓存，还应将本地缓存的图文档和自定义字段一并清空，确保下一次检出从服务器获取最新数据。
+  clearLocalDocAndCFCache: function() {
+    // 清空本地内存缓存（如果存在）
+    if (this._cache && typeof this._cache === 'object') {
+      if (Array.isArray(this._cache.documents)) { this._cache.documents = []; }
+      if (Array.isArray(this._cache.custom_field_defs)) { this._cache.custom_field_defs = []; }
+      if (this._cache.parts) this._cache.parts = {};
+      if (this._cache.components) this._cache.components = {};
+      // 其他缓存条目按需清空
+    }
+
+    // 清空本地存储中的相关缓存常量（若应用有使用 LocalStorage/IndexedDB 等存储缓存）
+    try { localStorage.removeItem('documents_cache'); } catch (e) {}
+    try { localStorage.removeItem('cf_defs_cache'); } catch (e) {}
+    try { localStorage.removeItem('custom_field_defs'); } catch (e) {}
+    try { localStorage.removeItem('part_cache'); } catch (e) {}
+    try { localStorage.removeItem('assembly_cache'); } catch (e) {}
+
+    // 指示用户和系统缓存已清除
+    if (this._updateProgress) {
+      this._updateProgress(0, '本地缓存已清除（图文档、自定义字段）', '');
+    }
+
+    // 清理完毕后，尽量清空零件的本地检出图文档缓存，确保界面不再显示老数据
+    try {
+      var partsCache = this.getAll('parts');
+      if (Array.isArray(partsCache)) {
+        var self = this;
+        partsCache.forEach(function(p){ if (p) p._entityDocs = []; });
+        self.saveAll('parts', partsCache);
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // 重新渲染/刷新视图，确保后续操作从服务端重新拉取数据
+    // 清理完毕后，尽量清空零件的本地检出图文档缓存，确保界面不再显示老数据
+    try {
+      var partsCache = this.getAll('parts');
+      if (Array.isArray(partsCache)) {
+        partsCache.forEach(function(p){ if (p) p._entityDocs = []; });
+        this.saveAll('parts', partsCache);
+      }
+    } catch (e) {
+      // ignore
+    }
+    if (Router && typeof Router.render === 'function') {
+      Router.render();
+    }
+  },
 
   _enqueue(op, entity, record, oldRecord) {
 
@@ -776,6 +814,8 @@ _fieldMap: {
 
       const serverComps = await API.getAssemblies().catch(() => []);
 
+      const serverDocs = await API.getDocuments().catch(() => []);
+
       // 转换字段名 snake_case -> camelCase
       const convertFields = (data) => {
         return data.map(item => {
@@ -790,9 +830,11 @@ _fieldMap: {
 
       const localParts = convertFields(serverParts);
       const localComps = convertFields(serverComps);
+      const localDocs = convertFields(serverDocs);
 
       this.saveAll('parts', localParts);
       this.saveAll('components', localComps);
+      this.saveAll('documents', localDocs);
 
     } catch (e) {
 
