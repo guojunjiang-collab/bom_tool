@@ -118,15 +118,27 @@ var Parts = {
           _loadCFDefs().then(function(cfDefs) {
             var cfArea = document.getElementById('cf-part-edit-area');
             if (!cfArea) return;
-            var cfValues = part ? (part.customFields || {}) : {};
-            cfArea.innerHTML = _renderCFEditHtml(cfValues, cfDefs, 'part', ro);
+            if (part && part.id) {
+              API.getCustomFieldValues('part', part.id).then(function(list) {
+                var cfMap = {};
+                (list || []).forEach(function(v) { if (v.field_key) cfMap[v.field_key] = v.value; });
+                part.customFields = cfMap;
+                cfArea.innerHTML = _renderCFEditHtml(cfMap, cfDefs, 'part', ro);
+              }).catch(function() {
+                var cfValues = part ? (part.customFields || {}) : {};
+                cfArea.innerHTML = _renderCFEditHtml(cfValues, cfDefs, 'part', ro);
+              });
+            } else {
+              var cfValuesLocal = part ? (part.customFields || {}) : {};
+              cfArea.innerHTML = _renderCFEditHtml(cfValuesLocal, cfDefs, 'part', ro);
+            }
           });
           // 加载附件列表（编辑时）
           if (part && part.id) {
             Parts._loadAttachmentsForEdit(part);
           }
           // 保存按钮事件
-          document.getElementById('btn-sp').onclick = function() {
+            document.getElementById('btn-sp').onclick = function() {
             console.log('[DEBUG] btn-sp clicked, part=', part ? part.id : 'new');
             var code = document.getElementById('fp-code').value.trim();
             var name = document.getElementById('fp-name').value.trim();
@@ -150,7 +162,7 @@ var Parts = {
               status:document.getElementById('fp-st').value,
             };
             console.log('[DEBUG] saving data:', data);
-            if (part) {
+              if (part) {
               Store.update('parts', part.id, data);
               Store.addLog('编辑零件', '修改零件 ' + code);
               var cfDefsForSave = Store.getAll('custom_field_defs');
@@ -161,11 +173,13 @@ var Parts = {
             } else {
               Store.add('parts', data);
               Store.addLog('新增零件', '新增零件 ' + code + ' - ' + name);
-              var cfDefsForSave2 = Store.getAll('custom_field_defs');
+              var cfDefsForSave2 = cfDefs;
               var cfVals2 = _collectCFValues(cfDefsForSave2, 'part');
               if (cfVals2 && Object.keys(cfVals2).length > 0) {
-                Store.update('parts', data.id, { customFields: cfVals2 }, { skipSync: true });
-                _saveCFValues('part', data.id, cfVals2, cfDefsForSave2);
+                if (part) {
+                  Store.update('parts', part.id, { customFields: cfVals2 }, { skipSync: true });
+                  _saveCFValues('part', part.id, cfVals2, cfDefsForSave2);
+                }
               }
               UI.toast('零件新增成功', 'success');
             }
@@ -260,7 +274,29 @@ var Parts = {
     // 加载自定义字段
     _loadCFDefs().then(function(cfDefs) {
       var cfValues = part.customFields || {};
-      var cfHtml = _renderCFViewHtml(cfValues, cfDefs, 'part');
+      // 1) 尝试使用服务端的自定义字段值来渲染，避免本地旧数据覆盖
+      var renderCfArea = function(cfMap) {
+        var cfHtml = _renderCFViewHtml(cfMap || {}, cfDefs, 'part');
+        // 放入一个占位容器以便后续替换
+        var cfContainer = document.getElementById('part-cf-view-area');
+        if (cfContainer) cfContainer.innerHTML = cfHtml;
+      };
+      if (part && part.id) {
+        try {
+          API.getCustomFieldValues('part', part.id).then(function(list) {
+            var map = {};
+            (list || []).forEach(function(v) { if (v.field_key) map[v.field_key] = v.value; });
+            part.customFields = map;
+            renderCfArea(map);
+          }).catch(function() {
+            renderCfArea(cfValues);
+          });
+        } catch (e) {
+          renderCfArea(cfValues);
+        }
+      } else {
+        renderCfArea(cfValues);
+      }
 
       // 修订记录HTML
       var revHtml = '<h4 style="margin:20px 0 12px">📝 修订记录 (' + revs.length + ')</h4>';
@@ -279,18 +315,20 @@ var Parts = {
         '<div class="form-row"><div class="form-group"><label>件号</label><input type="text" value="' + _esc(part.code) + '"' + ro + '></div><div class="form-group"><label>中文名称</label><input type="text" value="' + _esc(part.name) + '"' + ro + '></div></div>' +
         '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" value="' + _esc(part.spec||'') + '"' + ro + '></div><div class="form-group"><label>版本</label><input type="text" value="' + (part.version||'A') + '"' + ro + '></div></div>' +
         '<div class="form-row"><div class="form-group"><label>状态</label>' + UI.statusTag(part.status) + '</div></div>' +
-          cfHtml +
+          '<div id="part-cf-view-area"></div>' +
         '<div id="view-part-edocs-area">' + Parts._renderAttachmentsView(part) + '</div>',
         { footer: '<button class="btn-primary" onclick="UI.closeModal()">关闭</button>',
-          afterRender: function() {
-            if (part && part.id) {
-              API._fetch('GET', '/parts/' + part.id + '/documents').then(function(list) {
-                part._entityDocs = list;
-                var area = document.getElementById('view-part-edocs-area');
-                if (area) area.innerHTML = Parts._renderAttachmentsView(part);
-              });
-            }
-          }
+      afterRender: function() {
+        if (part && part.id) {
+          API._fetch('GET', '/parts/' + part.id + '/documents').then(function(list) {
+            part._entityDocs = list;
+            var area = document.getElementById('view-part-edocs-area');
+            if (area) area.innerHTML = Parts._renderAttachmentsView(part);
+            // 同时刷新 CF 展示区，确保显示服务器端的自定义字段
+            _refreshPartCFView(part);
+          });
+        }
+      }
         });
     });
   },

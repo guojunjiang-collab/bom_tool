@@ -94,7 +94,7 @@ var Documents = {
     var doc = docs.find(function(d) { return d.id === id; });
     if (!doc) return;
 
-    var html = '<div style="border:1px solid #e0e0e0; border-radius:6px; padding:12px; background:#fff">' +
+    var html = '<div style="border:2px solid #d0d0d0; border-radius:8px; padding:14px; background:#fff; box-shadow:0 2px 6px rgba(0,0,0,.05);">' +
       '<div class="form-row"><div class="form-group"><label>编号</label><div style="padding:6px 0;font-weight:500">' + _esc(doc.code) + '</div></div><div class="form-group"><label>名称</label><div style="padding:6px 0">' + _esc(doc.name) + '</div></div></div>' +
       '<div class="form-row"><div class="form-group"><label>版本</label><div style="padding:6px 0">' + _esc(doc.version) + '</div></div><div class="form-group"><label>状态</label><div style="padding:6px 0">' + UI.statusTag(doc.status || 'draft') + '</div></div></div>' +
       '<div class="form-row"><div class="form-group" style="flex:1"><label>描述</label><div style="padding:6px 0">' + (doc.description ? _esc(doc.description) : '<span style="color:#ccc">—</span>') + '</div></div><div class="form-group" style="flex:1"><label>主附件</label><div style="padding:6px 0">' + (doc.file_name ? _esc(doc.file_name) : '<span style="color:#ccc">未上传</span>') + '</div></div></div>' +
@@ -456,4 +456,35 @@ function _saveCFValues(entityType, entityId, cfValues, cfDefs) {
   return API.setCustomFieldValues(entityType, entityId, values).catch(function(e) {
     console.warn('自定义字段值保存失败:', e);
   });
+}
+
+// Render custom fields for documents (server-side values) - independent helper to align with parts UI
+function _renderCFViewHtml(cfValues, cfDefs, appliesTo) {
+  if (!cfDefs || cfDefs.length === 0) return '';
+  var applicableDefs = cfDefs.filter(function(d) {
+    return d.applies_to === appliesTo || d.applies_to === 'both';
+  });
+  if (applicableDefs.length === 0) return '';
+
+  var html = '<h4 style="margin:20px 0 12px">🏷️ 自定义属性</h4><div class="form-row" style="flex-wrap:wrap">';
+  applicableDefs.forEach(function(d) {
+    var val = cfValues ? cfValues[d.field_key] : null;
+    var displayVal = '';
+    if (val !== undefined && val !== null && val !== '') {
+      if (d.field_type === 'multiselect' && Array.isArray(val)) {
+        displayVal = val.map(function(v) { return '<span class="tag" style="background:#e6f7ff;color:#1890ff;margin:1px">' + _esc(String(v)) + '</span>'; }).join(' ');
+      } else if (d.field_type === 'select') {
+        displayVal = '<span class="tag" style="background:#f6ffed;color:#52c41a">' + _esc(String(val)) + '</span>';
+      } else if (d.field_type === 'number') {
+        displayVal = '<span style="font-weight:600;color:#1890ff">' + _esc(String(val)) + '</span>';
+      } else {
+        displayVal = _esc(String(val));
+      }
+    } else {
+      displayVal = '<span style="color:#ccc">—</span>';
+    }
+    html += '<div class="form-group" style="min-width:200px;flex:1"><label>' + _esc(d.name) + (d.is_required ? ' <span class="required">*</span>' : '') + '</label><div style="padding:6px 0">' + displayVal + '</div></div>';
+  });
+  html += '</div>';
+  return html;
 }
