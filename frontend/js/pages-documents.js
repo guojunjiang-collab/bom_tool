@@ -94,13 +94,22 @@ var Documents = {
     var doc = docs.find(function(d) { return d.id === id; });
     if (!doc) return;
 
-    var html = '<div class="form-row"><div class="form-group"><label>编号</label><div style="padding:6px 0;font-weight:500">' + _esc(doc.code) + '</div></div><div class="form-group"><label>名称</label><div style="padding:6px 0">' + _esc(doc.name) + '</div></div></div>' +
+    var html = '<div style="border:1px solid #e0e0e0; border-radius:6px; padding:12px; background:#fff">' +
+      '<div class="form-row"><div class="form-group"><label>编号</label><div style="padding:6px 0;font-weight:500">' + _esc(doc.code) + '</div></div><div class="form-group"><label>名称</label><div style="padding:6px 0">' + _esc(doc.name) + '</div></div></div>' +
       '<div class="form-row"><div class="form-group"><label>版本</label><div style="padding:6px 0">' + _esc(doc.version) + '</div></div><div class="form-group"><label>状态</label><div style="padding:6px 0">' + UI.statusTag(doc.status || 'draft') + '</div></div></div>' +
-      '<div class="form-row"><div class="form-group"><label>描述</label><div style="padding:6px 0">' + (doc.description ? _esc(doc.description) : '<span style="color:#ccc">—</span>') + '</div></div><div class="form-group"><label>主附件</label><div style="padding:6px 0">' + (doc.file_name ? _esc(doc.file_name) : '<span style="color:#ccc">未上传</span>') + '</div></div></div>';
+      '<div class="form-row"><div class="form-group" style="flex:1"><label>描述</label><div style="padding:6px 0">' + (doc.description ? _esc(doc.description) : '<span style="color:#ccc">—</span>') + '</div></div><div class="form-group" style="flex:1"><label>主附件</label><div style="padding:6px 0">' + (doc.file_name ? _esc(doc.file_name) : '<span style="color:#ccc">未上传</span>') + '</div></div></div>' +
+      '<div id="doc-cf-view-area"></div>' +
+      '</div>';
 
     UI.modal('图文档详情 — ' + doc.code, html, {
       footer: '<button class="btn-outline" onclick="UI.closeModal()">关闭</button>' +
-        '<button class="btn-primary" onclick="UI.closeModal();Documents._editDoc(\'' + doc.id + '\')">编辑</button>'
+        '<button class="btn-primary" onclick="UI.closeModal();Documents._editDoc(\'' + doc.id + '\')">编辑</button>',
+      afterRender: function() {
+        _loadDocCFDefs().then(function(cfDefs) {
+          var cfArea = document.getElementById('doc-cf-view-area');
+          if (cfArea) cfArea.innerHTML = _renderCFViewHtml(doc.customFields || {}, cfDefs, 'document');
+        });
+      }
     });
   },
 
