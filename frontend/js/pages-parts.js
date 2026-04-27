@@ -162,28 +162,32 @@ var Parts = {
               status:document.getElementById('fp-st').value,
             };
             console.log('[DEBUG] saving data:', data);
+            try {
               if (part) {
-              Store.update('parts', part.id, data);
-              Store.addLog('编辑零件', '修改零件 ' + code);
-              var cfDefsForSave = Store.getAll('custom_field_defs');
-              var cfVals = _collectCFValues(cfDefsForSave, 'part');
-              Store.update('parts', part.id, { customFields: cfVals }, { skipSync: true });
-              _saveCFValues('part', part.id, cfVals, cfDefsForSave);
-              UI.toast('零件更新成功', 'success');
-            } else {
-              Store.add('parts', data);
-              Store.addLog('新增零件', '新增零件 ' + code + ' - ' + name);
-              var cfDefsForSave2 = cfDefs;
-              var cfVals2 = _collectCFValues(cfDefsForSave2, 'part');
-              if (cfVals2 && Object.keys(cfVals2).length > 0) {
-                if (part) {
-                  Store.update('parts', part.id, { customFields: cfVals2 }, { skipSync: true });
-                  _saveCFValues('part', part.id, cfVals2, cfDefsForSave2);
+                Store.update('parts', part.id, data, { skipSync: true });
+                Store.addLog('编辑零件', '修改零件 ' + code);
+                var cfDefsForSave = Store.getAll('custom_field_defs');
+                var cfVals = _collectCFValues(cfDefsForSave, 'part');
+                Store.update('parts', part.id, { customFields: cfVals }, { skipSync: true });
+                _saveCFValues('part', part.id, cfVals, cfDefsForSave);
+                UI.toast('零件更新成功', 'success');
+              } else {
+                Store.add('parts', data);
+                Store.addLog('新增零件', '新增零件 ' + code + ' - ' + name);
+                var cfDefsForSave2 = Store.getAll('custom_field_defs');
+                var cfVals2 = _collectCFValues(cfDefsForSave2, 'part');
+                if (cfVals2 && Object.keys(cfVals2).length > 0) {
+                  Store.update('parts', data.id, { customFields: cfVals2 }, { skipSync: true });
+                  _saveCFValues('part', data.id, cfVals2, cfDefsForSave2);
                 }
+                UI.toast('零件新增成功', 'success');
               }
-              UI.toast('零件新增成功', 'success');
+            } catch (e) {
+              console.error('保存零件失败:', e);
+              UI.toast('保存失败: ' + (e.message || '未知错误'), 'error');
             }
-            UI.closeModal(); Router.render();
+            UI.closeModal();
+            Router.render();
           };
         }
       });
@@ -402,61 +406,185 @@ var Parts = {
   },
 
   _showDocSelector: function(partId) {
-    var selectedDocs = [];
-    var docs = [];
-    API._fetch('GET', '/documents/').then(function(allDocs) {
-      docs = allDocs || [];
-      var html = '<input type="text" id="doc-sel-search" class="form-input" placeholder="搜索编号或名称..." style="margin-bottom:8px">' +
-        '<div id="doc-sel-list" style="max-height:300px;overflow-y:auto"></div>';
-      UI.modal('选择图文档', html, {
-        footer: '<button class="btn-outline" onclick="UI.closeModal()">取消</button><button class="btn-primary" id="btn-confirm-edoc">确认关联</button>',
-        afterRender: function() {
-          function renderList(kw) {
-            var list = docs.filter(function(d) {
-              if (!kw) return true;
-              return (d.code && d.code.toLowerCase().indexOf(kw) !== -1) || (d.name && d.name.toLowerCase().indexOf(kw) !== -1);
-            });
-            var el = document.getElementById('doc-sel-list');
-            if (list.length === 0) { el.innerHTML = '<div style="padding:20px;text-align:center;color:#999">无匹配结果</div>'; return; }
-            el.innerHTML = list.map(function(d) {
-              var checked = selectedDocs.indexOf(d.id) >= 0 ? ' checked' : '';
-              return '<label style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid #f0f0f0;cursor:pointer"><input type="checkbox" value="' + d.id + '"' + checked + '><span style="flex:1"><strong>' + _esc(d.code) + '</strong> · ' + _esc(d.name) + '</span><span style="color:#999;font-size:12px">' + _esc(d.version) + '</span></label>';
-            }).join('');
-          }
-          renderList();
-          document.getElementById('doc-sel-search').oninput = function() { renderList(this.value.trim().toLowerCase()); };
-          document.getElementById('btn-confirm-edoc').onclick = function() {
-            var checks = document.querySelectorAll('#doc-sel-list input[type=checkbox]:checked');
-            var ids = Array.from(checks).map(function(c) { return c.value; }).filter(function(id) { return id; });
-            if (ids.length === 0) { UI.toast('至少选择一个图文档', 'warning'); return; }
-            // 过滤掉已关联的图文档，避免重复关联
-            var existingPart = (Store.getAll('parts') || []).find(function(p) { return p.id === partId; });
-            var existingDocIds = [];
-            if (existingPart && existingPart._entityDocs) {
-              existingDocIds = existingPart._entityDocs.map(function(ed) {
-                var d = ed.document || {};
-                return d.id || ed.document_id || null;
-              }).filter(function(x) { return !!x; });
-            }
-            var toAdd = ids.filter(function(id) { return existingDocIds.indexOf(id) < 0; });
-            if (toAdd.length === 0) {
-              UI.toast('所选图文档已关联，请勿重复关联', 'info');
-              return;
-            }
-            var promises = toAdd.map(function(docId) {
-              return API._fetch('POST', '/parts/' + partId + '/documents', { id: _uuid(), document_id: docId, sort_order: 0 });
-            });
-            Promise.all(promises).then(function() {
-              UI.toast('关联成功', 'success');
-              if (typeof Parts._loadAttachmentsForEdit === 'function') {
-                var p = Store.getById('parts', partId);
-                if (p) Parts._loadAttachmentsForEdit(p);
-              }
-              UI.closeModal();
-            }).catch(function(e) { UI.toast('关联失败: ' + e.message, 'error'); });
-          };
-        }
+    var docs = Store.getAll('documents') || [];
+    
+    // 获取已关联的图文档ID
+    var existingPart = Store.getAll('parts').find(function(p) { return p.id === partId; });
+    var existingDocIds = [];
+    if (existingPart && existingPart._entityDocs) {
+      existingDocIds = existingPart._entityDocs.map(function(ed) {
+        var d = ed.document || {};
+        return d.id || ed.document_id || null;
+      }).filter(function(x) { return !!x; });
+    }
+    
+    // 过滤掉已关联的
+    var filteredDocs = docs.filter(function(d) { return existingDocIds.indexOf(d.id) < 0; });
+    
+    window._docSelectorState = {
+      filteredDocs: filteredDocs,
+      selectedDocs: []
+    };
+    
+    function renderSelectedDocs() {
+      var container = document.getElementById('ds-selected-docs');
+      if (!container) return;
+      
+      var selected = window._docSelectorState ? window._docSelectorState.selectedDocs : [];
+      if (selected.length === 0) {
+        container.innerHTML = '<p style="color:#999;font-size:12px;padding:4px 0">暂无已选图文档</p>';
+        return;
+      }
+      
+      var h = '<table style="table-layout:fixed;width:100%;margin-bottom:4px"><thead><tr style="background:#f8f8f8"><th style="width:120px;text-align:left;padding:4px 6px;font-size:11px;color:#888">编号</th><th style="text-align:left;padding:4px 6px;font-size:11px;color:#888">名称</th><th style="width:60px;text-align:left;padding:4px 6px;font-size:11px;color:#888">版本</th><th style="width:60px;text-align:left;padding:4px 6px;font-size:11px;color:#888">状态</th><th style="width:40px"></th></tr></thead><tbody>';
+      
+      selected.forEach(function(d, idx) {
+        h += '<tr style="border-bottom:1px solid #f0f0f0">';
+        h += '<td style="padding:4px 6px;font-size:12px">' + _esc(d.code || '') + '</td>';
+        h += '<td style="padding:4px 6px;font-size:12px">' + _esc(d.name || '') + '</td>';
+        h += '<td style="padding:4px 6px;font-size:12px;color:#888">' + _esc(d.version || 'A') + '</td>';
+        h += '<td style="padding:4px 6px;font-size:12px">' + UI.statusTag(d.status || 'draft') + '</td>';
+        h += '<td style="text-align:center"><button class="btn-text danger" style="font-size:12px;padding:2px 4px" onclick="Parts._removeSelectedDoc(\'' + d.id + '\')">×</button></td>';
+        h += '</tr>';
       });
-    }).catch(function(e) { UI.toast('获取文本档列表失败: ' + e.message, 'error'); });
+      
+      h += '</tbody></table>';
+      container.innerHTML = h;
+    }
+    
+    var overlay = document.createElement('div');
+    overlay.id = 'doc-selector-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:2000;display:flex;align-items:center;justify-content:center;animation:fadeIn .15s';
+    
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:8px;width:720px;max-width:90vw;max-height:88vh;display:flex;flex-direction:column;animation:slideUp .2s;overflow:hidden">' +
+      '<div style="padding:14px 20px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0">' +
+      '<span style="font-size:15px;font-weight:600">关联图文档</span>' +
+      '<button id="ds-close" style="background:none;border:none;font-size:22px;cursor:pointer;color:#999;line-height:1;padding:0 4px">&times;</button>' +
+      '</div>' +
+      '<div style="padding:14px 20px 10px;flex-shrink:0">' +
+      '<div style="font-size:12px;color:#666;margin-bottom:8px">已选图文档</div>' +
+      '<div id="ds-selected-docs" style="max-height:140px;overflow-y:auto;border:1px solid #e8e8e8;border-radius:6px;padding:8px 10px"></div>' +
+      '</div>' +
+      '<div style="padding:0 20px 14px;flex-shrink:0">' +
+      '<input type="text" id="ds-kw" placeholder="搜索编号或名称..." style="width:100%;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">' +
+      '</div>' +
+      '<div id="ds-results" style="flex:1;overflow-y:auto;margin:0 20px 16px;border:1px solid #e8e8e8;border-radius:6px;min-height:120px"></div>' +
+      '<div style="padding:12px 20px;border-top:1px solid #f0f0f0;flex-shrink:0;display:flex;justify-content:flex-end;gap:8px">' +
+      '<button class="btn-outline" id="ds-cancel">取消</button>' +
+      '<button class="btn-primary" id="ds-confirm">确认关联</button>' +
+      '</div>' +
+      '</div>';
+    
+    document.body.appendChild(overlay);
+    renderSelectedDocs();
+    
+    function closeOverlay() {
+      overlay.remove();
+      window._docSelectorState = null;
+      window._refreshDocSelector = null;
+    }
+    
+    document.getElementById('ds-close').onclick = closeOverlay;
+    document.getElementById('ds-cancel').onclick = closeOverlay;
+    
+    overlay.onclick = function(e) {
+      if (e.target === overlay) closeOverlay();
+    };
+    
+    function renderResults(keyword) {
+      var kw = (keyword || '').toLowerCase();
+      var filtered = window._docSelectorState ? window._docSelectorState.filteredDocs : [];
+      
+      var results = filtered.filter(function(d) {
+        if (!kw) return true;
+        return (d.code && d.code.toLowerCase().indexOf(kw) >= 0) || (d.name && d.name.toLowerCase().indexOf(kw) >= 0);
+      });
+      
+      var container = document.getElementById('ds-results');
+      if (!container) return;
+      
+      if (results.length === 0) {
+        container.innerHTML = '<div style="padding:20px;text-align:center;color:#999;font-size:13px">未找到匹配的图文档</div>';
+        return;
+      }
+      
+      var html = '<table style="table-layout:fixed;width:100%"><thead><tr style="background:#f8f8f8"><th style="width:120px;text-align:left;padding:6px 10px;font-size:12px;color:#888">编号</th><th style="text-align:left;padding:6px 10px;font-size:12px;color:#888">名称</th><th style="width:70px;text-align:left;padding:6px 10px;font-size:12px;color:#888">版本</th><th style="width:70px;text-align:left;padding:6px 10px;font-size:12px;color:#888">状态</th><th style="width:70px;text-align:center;padding:6px 10px;font-size:12px;color:#888">操作</th></tr></thead><tbody>';
+      
+      results.forEach(function(d) {
+        html += '<tr style="border-bottom:1px solid #f5f5f5"><td style="padding:7px 10px;font-size:13px">' + _esc(d.code || '') + '</td><td style="padding:7px 10px;font-size:13px">' + _esc(d.name || '') + '</td><td style="padding:7px 10px;font-size:13px;color:#888">' + _esc(d.version || 'A') + '</td><td style="padding:7px 10px;font-size:13px">' + UI.statusTag(d.status || 'draft') + '</td><td style="text-align:center;padding:7px 10px"><button class="btn-primary btn-sm" onclick="Parts._addSelectedDoc(\'' + d.id + '\')">添加</button></td></tr>';
+      });
+      
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+    
+    window._refreshDocSelector = function() {
+      var kw = document.getElementById('ds-kw') ? document.getElementById('ds-kw').value : '';
+      renderResults(kw);
+      renderSelectedDocs();
+    };
+    
+    document.getElementById('ds-kw').oninput = function() { renderResults(this.value); };
+    
+    document.getElementById('ds-confirm').onclick = function() {
+      var selected = window._docSelectorState ? window._docSelectorState.selectedDocs : [];
+      if (selected.length === 0) {
+        UI.toast('请至少选择一个图文档', 'warning');
+        return;
+      }
+      
+      var promises = selected.map(function(d) {
+        return API._fetch('POST', '/parts/' + partId + '/documents', { id: _uuid(), document_id: d.id, sort_order: 0 });
+      });
+      
+      Promise.all(promises).then(function() {
+        UI.toast('关联成功', 'success');
+        closeOverlay();
+        // 刷新编辑界面中的图文档列表
+        var part = Store.getById('parts', partId);
+        if (part) Parts._loadAttachmentsForEdit(part);
+      }).catch(function(e) {
+        UI.toast('关联失败: ' + e.message, 'error');
+      });
+    };
+    
+    renderResults('');
+  },
+  
+  _addSelectedDoc: function(docId) {
+    if (!window._docSelectorState) return;
+    
+    var doc = (window._docSelectorState.filteredDocs || []).find(function(d) { return d.id === docId; });
+    if (!doc) return;
+    
+    // 添加到已选
+    window._docSelectorState.selectedDocs.push(doc);
+    
+    // 从可选列表中移除
+    window._docSelectorState.filteredDocs = window._docSelectorState.filteredDocs.filter(function(d) { return d.id !== docId; });
+    
+    UI.toast('已添加图文档', 'success');
+    
+    if (typeof window._refreshDocSelector === 'function') {
+      window._refreshDocSelector();
+    }
+  },
+  
+  _removeSelectedDoc: function(docId) {
+    if (!window._docSelectorState) return;
+    
+    var doc = window._docSelectorState.selectedDocs.find(function(d) { return d.id === docId; });
+    if (!doc) return;
+    
+    // 从已选中移除
+    window._docSelectorState.selectedDocs = window._docSelectorState.selectedDocs.filter(function(d) { return d.id !== docId; });
+    
+    // 加回到可选列表
+    window._docSelectorState.filteredDocs.push(doc);
+    
+    if (typeof window._refreshDocSelector === 'function') {
+      window._refreshDocSelector();
+    }
   }
 };
