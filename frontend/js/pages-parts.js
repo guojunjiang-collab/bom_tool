@@ -358,7 +358,8 @@ var Parts = {
     if (!container) return;
 
     function render(edocs) {
-      var html = '<div id="edoc-list-area"></div>' +
+      var html = '<h4 style="margin:16px 0 12px;border-top:1px solid #f0f0f0;padding-top:16px">📎 关联图文档</h4>' +
+        '<div id="edoc-list-area"></div>' +
         '<button class="btn-outline btn-sm" id="btn-add-edoc" style="margin-top:8px">+ 关联图文档</button>';
       container.innerHTML = html;
 
