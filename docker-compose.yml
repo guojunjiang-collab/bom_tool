@@ -10,6 +10,7 @@ services:
       POSTGRES_DB: bom_system
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d
     networks:
       - bom_network
 

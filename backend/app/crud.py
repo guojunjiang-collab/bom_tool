@@ -360,6 +360,9 @@ def reset_business_data(db):
     # 按依赖顺序删除：值 → BOM → 附件 → 零件/部件 → 日志
     db.query(models.CustomFieldValue).delete()
     db.query(models.BOMItem).delete()
+    db.query(models.DocumentAttachment).delete()
+    db.query(models.EntityDocument).delete()
+    db.query(models.Document).delete()
     db.query(models.Attachment).delete()
     db.query(models.Part).delete()
     db.query(models.Assembly).delete()

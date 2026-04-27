@@ -37,15 +37,6 @@ class PartBase(BaseSchema):
     version: str = "A"
     status: str = "draft"
     revisions: Optional[List[Any]] = None
-    source_file: Optional[str] = None
-    source_file_id: Optional[uuid.UUID] = None
-    drawing: Optional[str] = None
-    drawing_id: Optional[uuid.UUID] = None
-    stp: Optional[str] = None
-    stp_id: Optional[uuid.UUID] = None
-    pdf: Optional[str] = None
-    pdf_id: Optional[uuid.UUID] = None
-
 
 class PartCreate(PartBase):
     id: Optional[uuid.UUID] = None
@@ -56,14 +47,6 @@ class PartUpdate(BaseSchema):
     version: Optional[str] = None
     status: Optional[str] = None
     revisions: Optional[List[Any]] = None
-    source_file: Optional[str] = None
-    source_file_id: Optional[uuid.UUID] = None
-    drawing: Optional[str] = None
-    drawing_id: Optional[uuid.UUID] = None
-    stp: Optional[str] = None
-    stp_id: Optional[uuid.UUID] = None
-    pdf: Optional[str] = None
-    pdf_id: Optional[uuid.UUID] = None
 
 class PartResponse(PartBase):
     id: uuid.UUID
@@ -77,14 +60,6 @@ class AssemblyBase(BaseSchema):
     version: str = "V1.0"
     status: str = "draft"
     revisions: Optional[List[Any]] = None
-    source_file: Optional[str] = None
-    source_file_id: Optional[uuid.UUID] = None
-    drawing: Optional[str] = None
-    drawing_id: Optional[uuid.UUID] = None
-    stp: Optional[str] = None
-    stp_id: Optional[uuid.UUID] = None
-    pdf: Optional[str] = None
-    pdf_id: Optional[uuid.UUID] = None
 
 class AssemblyCreate(AssemblyBase):
     id: Optional[uuid.UUID] = None
@@ -95,14 +70,6 @@ class AssemblyUpdate(BaseSchema):
     version: Optional[str] = None
     status: Optional[str] = None
     revisions: Optional[List[Any]] = None
-    source_file: Optional[str] = None
-    source_file_id: Optional[uuid.UUID] = None
-    drawing: Optional[str] = None
-    drawing_id: Optional[uuid.UUID] = None
-    stp: Optional[str] = None
-    stp_id: Optional[uuid.UUID] = None
-    pdf: Optional[str] = None
-    pdf_id: Optional[uuid.UUID] = None
 
 class AssemblyResponse(AssemblyBase):
     id: uuid.UUID
@@ -207,7 +174,7 @@ class CustomFieldDefinitionBase(BaseSchema):
     field_type: str = Field(..., pattern=r'^(text|number|select|multiselect)$')
     options: Optional[List[str]] = None
     is_required: bool = False
-    applies_to: str = Field(default='both', pattern=r'^(part|component|both)$')
+    applies_to: str = Field(default='both', pattern=r'^(part|component|document|both)$')
     sort_order: int = 0
 
 class CustomFieldDefinitionCreate(CustomFieldDefinitionBase):
@@ -245,6 +212,66 @@ class CustomFieldValueResponse(BaseSchema):
     field_type: Optional[str] = None
     value: Optional[Any] = None
 
+
+# ===== 图文档 Schema =====
+
+class DocumentBase(BaseSchema):
+    code: str = Field(..., min_length=1, max_length=64)
+    name: str = Field(..., min_length=1, max_length=255)
+    version: str = "A"
+    status: str = "draft"
+    description: Optional[str] = None
+
+class DocumentCreate(DocumentBase):
+    id: Optional[uuid.UUID] = None
+
+class DocumentUpdate(BaseSchema):
+    name: Optional[str] = None
+    version: Optional[str] = None
+    status: Optional[str] = None
+    description: Optional[str] = None
+
+class DocumentResponse(DocumentBase):
+    id: uuid.UUID
+    file_name: Optional[str] = None
+    file_id: Optional[uuid.UUID] = None
+    created_at: datetime
+    updated_at: datetime
+
+class DocumentAttachmentCreate(BaseSchema):
+    id: Optional[uuid.UUID] = None
+    file_name: str
+    file_data: str
+
+class DocumentAttachmentResponse(BaseSchema):
+    id: uuid.UUID
+    document_id: uuid.UUID
+    file_name: Optional[str] = None
+    file_size: Optional[int] = None
+    created_at: datetime
+
+class DocumentAttachmentFull(DocumentAttachmentResponse):
+    file_data: Optional[str] = None
+
+class EntityDocumentCreate(BaseSchema):
+    id: Optional[uuid.UUID] = None
+    document_id: uuid.UUID
+    category: Optional[str] = None
+    sort_order: int = 0
+
+class EntityDocumentUpdate(BaseSchema):
+    category: Optional[str] = None
+    sort_order: Optional[int] = None
+
+class EntityDocumentResponse(BaseSchema):
+    id: uuid.UUID
+    entity_type: str
+    entity_id: uuid.UUID
+    document_id: uuid.UUID
+    category: Optional[str] = None
+    sort_order: int
+    created_at: datetime
+    document: Optional[DocumentResponse] = None
 
 class ReorderItem(BaseSchema):
     id: uuid.UUID

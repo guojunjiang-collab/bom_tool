@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 import uuid
 
 from ..database import get_db
-from ..models import User
+from ..models import User, Document, EntityDocument
 from .. import crud, schemas
 from .auth import require_role
 
@@ -19,14 +19,6 @@ def _assembly_response(asm):
         "version": asm.version,
         "status": asm.status,
         "revisions": asm.revisions or [],
-        "source_file": asm.source_file,
-        "source_file_id": asm.source_file_id,
-        "drawing": asm.drawing,
-        "drawing_id": asm.drawing_id,
-        "stp": asm.stp,
-        "stp_id": asm.stp_id,
-        "pdf": asm.pdf,
-        "pdf_id": asm.pdf_id,
         "created_at": asm.created_at,
         "updated_at": asm.updated_at,
     }
@@ -122,3 +114,73 @@ async def update_assembly_part(assembly_id: uuid.UUID, item_id: uuid.UUID, item_
     ip = request.client.host if request.client else None
     crud.create_log(db, current_user.id, current_user.username, "更新子项", "assembly_part", str(assembly_id), f"子项ID:{item_id}, 数量:{item_update.quantity}", ip)
     return db_item
+
+@router.get("/{assembly_id}/documents")
+async def get_assembly_documents(assembly_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin", "engineer"]))):
+    docs = db.query(EntityDocument, Document).join(Document, EntityDocument.document_id == Document.id).filter(
+        EntityDocument.entity_type == 'component',
+        EntityDocument.entity_id == assembly_id
+    ).order_by(EntityDocument.sort_order).all()
+    result = []
+    for ed, doc in docs:
+        result.append({
+            "id": ed.id,
+            "entity_type": ed.entity_type,
+            "entity_id": ed.entity_id,
+            "document_id": ed.document_id,
+            "category": ed.category,
+            "sort_order": ed.sort_order,
+            "created_at": ed.created_at,
+            "document": {
+                "id": doc.id,
+                "code": doc.code,
+                "name": doc.name,
+                "version": doc.version,
+                "status": doc.status,
+                "file_name": doc.file_name,
+                "file_id": doc.file_id,
+            }
+        })
+    return result
+
+@router.post("/{assembly_id}/documents")
+async def add_assembly_document(assembly_id: uuid.UUID, body: schemas.EntityDocumentCreate, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin", "engineer"]))):
+    doc = db.query(Document).filter(Document.id == body.document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="图文档不存在")
+    ed = EntityDocument(
+        entity_type='component',
+        entity_id=assembly_id,
+        document_id=body.document_id,
+        category=body.category,
+        sort_order=body.sort_order
+    )
+    if body.id:
+        ed.id = body.id
+    db.add(ed)
+    db.commit()
+    db.refresh(ed)
+    ip = request.client.host if request.client else None
+    crud.create_log(db, current_user.id, current_user.username, "关联图文档", "assembly_doc", str(assembly_id), f"文档:{doc.code}", ip)
+    return {"id": ed.id, "message": "图文档关联成功"}
+
+@router.put("/{assembly_id}/documents/{edoc_id}")
+async def update_assembly_document(assembly_id: uuid.UUID, edoc_id: uuid.UUID, body: schemas.EntityDocumentUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin", "engineer"]))):
+    ed = db.query(EntityDocument).filter(EntityDocument.id == edoc_id, EntityDocument.entity_id == assembly_id).first()
+    if not ed:
+        raise HTTPException(status_code=404, detail="关联不存在")
+    if body.category is not None:
+        ed.category = body.category
+    if body.sort_order is not None:
+        ed.sort_order = body.sort_order
+    db.commit()
+    return {"message": "关联已更新"}
+
+@router.delete("/{assembly_id}/documents/{edoc_id}")
+async def delete_assembly_document(assembly_id: uuid.UUID, edoc_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin", "engineer"]))):
+    ed = db.query(EntityDocument).filter(EntityDocument.id == edoc_id, EntityDocument.entity_id == assembly_id).first()
+    if not ed:
+        raise HTTPException(status_code=404, detail="关联不存在")
+    db.delete(ed)
+    db.commit()
+    return {"message": "关联已移除"}

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import auth_router, users_router, parts_router, assemblies_router, bom_router, logs_router, dict_router, attachments_router, custom_fields_router
+from .routers import auth_router, users_router, parts_router, assemblies_router, bom_router, logs_router, dict_router, attachments_router, custom_fields_router, documents_router
 
 app = FastAPI(
     title="BOM管理系统API",
@@ -28,6 +28,7 @@ app.include_router(logs_router, prefix="/api")
 app.include_router(dict_router, prefix="/api")
 app.include_router(attachments_router, prefix="/api")
 app.include_router(custom_fields_router, prefix="/api")
+app.include_router(documents_router, prefix="/api")
 
 @app.get("/")
 async def root():

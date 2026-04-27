@@ -28,14 +28,6 @@ class Part(Base):
     version = Column(String(32), default="A")
     status = Column(String(32), nullable=False, default="draft")
     revisions = Column(JSONB, default=[])
-    source_file = Column(String(255))
-    source_file_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
-    drawing = Column(String(255))
-    drawing_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
-    stp = Column(String(255))
-    stp_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
-    pdf = Column(String(255))
-    pdf_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -48,14 +40,6 @@ class Assembly(Base):
     version = Column(String(32), default="V1.0")
     status = Column(String(32), nullable=False, default="draft")
     revisions = Column(JSONB, default=[])
-    source_file = Column(String(255))
-    source_file_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
-    drawing = Column(String(255))
-    drawing_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
-    stp = Column(String(255))
-    stp_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
-    pdf = Column(String(255))
-    pdf_id = Column(UUID(as_uuid=True), ForeignKey('attachments.id', ondelete='SET NULL'))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -90,6 +74,42 @@ class Attachment(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+class Document(Base):
+    """图文档主表"""
+    __tablename__ = "documents"
+    __table_args__ = (UniqueConstraint('code', 'version', name='uix_doc_code_version'),)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code = Column(String(64), nullable=False)
+    name = Column(String(255), nullable=False)
+    version = Column(String(32), default="A")
+    status = Column(String(32), nullable=False, default="draft")
+    description = Column(Text)
+    file_name = Column(String(255))
+    file_id = Column(UUID(as_uuid=True), ForeignKey('document_attachments.id', ondelete='SET NULL'))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class DocumentAttachment(Base):
+    """图文档独立附件表"""
+    __tablename__ = "document_attachments"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    document_id = Column(UUID(as_uuid=True), ForeignKey('documents.id', ondelete='CASCADE'), nullable=False)
+    file_name = Column(String(255))
+    file_data = Column(LargeBinary)
+    file_size = Column(Integer)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class EntityDocument(Base):
+    """实体-图文档关联表（零部件↔图文档）"""
+    __tablename__ = "entity_documents"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    entity_type = Column(String(32), nullable=False)
+    entity_id = Column(UUID(as_uuid=True), nullable=False)
+    document_id = Column(UUID(as_uuid=True), ForeignKey('documents.id', ondelete='RESTRICT'), nullable=False)
+    category = Column(String(64))
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
 class Dictionary(Base):
     __tablename__ = "dictionaries"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -107,7 +127,7 @@ class CustomFieldDefinition(Base):
     field_type = Column(String(32), nullable=False)      # text / number / select / multiselect
     options = Column(JSONB, default=[])                   # 单选/多选选项列表
     is_required = Column(Integer, default=0)              # 是否必填（数据库是 BOOLEAN，用 Integer 兼容）
-    applies_to = Column(String(32), nullable=False, default='both')  # part / component / both
+    applies_to = Column(String(32), nullable=False, default='both')  # part / component / document / both
     sort_order = Column(Integer, default=0)               # 排序序号
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -172,6 +172,13 @@ const API = {
 
   async deleteDict(dictType, id) { return this._fetch('DELETE', '/dict/' + dictType + '/' + id); },
 
+  // Documents
+  async getDocuments() { return this._fetch('GET', '/documents/'); },
+  async getDocument(id) { return this._fetch('GET', '/documents/' + id); },
+  async createDocument(data) { return this._fetch('POST', '/documents/', data); },
+  async updateDocument(id, data) { return this._fetch('PUT', '/documents/' + id, data); },
+  async deleteDocument(id) { return this._fetch('DELETE', '/documents/' + id); },
+
   // Custom Fields
   async getCustomFieldDefinitions(appliesTo) {
     var path = '/custom-fields/definitions/';
@@ -185,6 +192,12 @@ const API = {
   async getCustomFieldValues(entityType, entityId) { return this._fetch('GET', '/custom-fields/values/' + entityType + '/' + entityId); },
   async setCustomFieldValues(entityType, entityId, values) { return this._fetch('PUT', '/custom-fields/values/' + entityType + '/' + entityId, { values: values }); },
   async resetBusinessData() { return this._fetch('POST', '/custom-fields/reset-data'); },
+
+  // Documents
+  async getDocuments() { return this._fetch('GET', '/documents/'); },
+  async createDocument(data) { return this._fetch('POST', '/documents/', data); },
+  async updateDocument(id, data) { return this._fetch('PUT', '/documents/' + id, data); },
+  async deleteDocument(id) { return this._fetch('DELETE', '/documents/' + id); },
 
   // Attachments v3.0
   async listAttachments() {

@@ -1,6 +1,6 @@
 const Router = {
 
-  _titles: { dashboard:'仪表板', parts:'零件管理', components:'部件管理', bom:'BOM管理', users:'用户管理', logs:'操作日志', settings:'系统设置' },
+  _titles: { dashboard:'仪表板', parts:'零件管理', components:'部件管理', bom:'BOM管理', documents:'图文档管理', users:'用户管理', logs:'操作日志', settings:'系统设置' },
 
   navigate(page) {
 
@@ -29,6 +29,8 @@ const Router = {
       case 'components': Components.render(c); break;
 
       case 'bom': Bom.render(c); break;
+
+      case 'documents': Documents.render(c); break;
 
       case 'users': Users.render(c); break;
 

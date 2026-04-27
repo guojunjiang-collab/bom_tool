@@ -106,8 +106,23 @@ var Documents = {
         '<button class="btn-primary" onclick="UI.closeModal();Documents._editDoc(\'' + doc.id + '\')">编辑</button>',
       afterRender: function() {
         _loadDocCFDefs().then(function(cfDefs) {
-          var cfArea = document.getElementById('doc-cf-view-area');
-          if (cfArea) cfArea.innerHTML = _renderCFViewHtml(doc.customFields || {}, cfDefs, 'document');
+          // 从服务器获取该文档的自定义字段值，避免本地缓存为空
+          if (doc && doc.id) {
+            API.getCustomFieldValues('document', doc.id).then(function(list) {
+              var cfMap = {};
+              (list || []).forEach(function(v) { if (v.field_key) cfMap[v.field_key] = v.value; });
+              doc.customFields = cfMap;
+              var cfArea = document.getElementById('doc-cf-view-area');
+              if (cfArea) cfArea.innerHTML = _renderCFViewHtml(cfMap, cfDefs, 'document');
+            }).catch(function() {
+              // 如果服务器获取失败，回退到本地值
+              var cfArea = document.getElementById('doc-cf-view-area');
+              if (cfArea) cfArea.innerHTML = _renderCFViewHtml(doc.customFields || {}, cfDefs, 'document');
+            });
+          } else {
+            var cfArea = document.getElementById('doc-cf-view-area');
+            if (cfArea) cfArea.innerHTML = _renderCFViewHtml(doc.customFields || {}, cfDefs, 'document');
+          }
         });
       }
     });

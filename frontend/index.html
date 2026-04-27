@@ -37,6 +37,7 @@
       <a data-page="parts"><span class="nav-icon">🔧</span><span>零件管理</span></a>
       <a data-page="components"><span class="nav-icon">📦</span><span>部件管理</span></a>
       <a data-page="bom"><span class="nav-icon">📋</span><span>BOM管理</span></a>
+      <a data-page="documents"><span class="nav-icon">📄</span><span>图文档管理</span></a>
       <a data-page="users" data-roles="admin"><span class="nav-icon">👥</span><span>用户管理</span></a>
       <a data-page="logs" data-roles="admin"><span class="nav-icon">📝</span><span>操作日志</span></a>
       <a data-page="settings" data-roles="admin"><span class="nav-icon">⚙️</span><span>系统设置</span></a>
@@ -90,8 +91,9 @@
       <div class="sync-results" id="sync-results" style="display:none">
         <div class="result-item"><span class="result-label">零件</span><span class="result-value" id="result-parts">-</span></div>
         <div class="result-item"><span class="result-label">部件</span><span class="result-value" id="result-components">-</span></div>
+        <div class="result-item"><span class="result-label">图文档</span><span class="result-value" id="result-documents">-</span></div>
         <div class="result-item"><span class="result-label">用户</span><span class="result-value" id="result-users">-</span></div>
-        <div class="result-item"><span class="result-label">材质字典</span><span class="value" id="result-dict_materials">-</span></div>
+        <div class="result-item"><span class="result-label">自定义字段</span><span class="value" id="result-custom_field_defs">-</span></div>
       </div>
     </div>
     <div class="sync-modal-footer">
@@ -122,6 +124,7 @@
   <script src="js/pages-parts.js"></script>
   <script src="js/pages-components.js"></script>
   <script src="js/pages-bom.js"></script>
+  <script src="js/pages-documents.js"></script>
   <script src="js/pages-users.js"></script>
   <script src="js/pages-settings.js"></script>
   <script src="js/router.js"></script>
