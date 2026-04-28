@@ -4,7 +4,7 @@ import uuid
 import base64
 
 from ..database import get_db
-from ..models import User, Document, DocumentAttachment, EntityDocument
+from ..models import User, Document, DocumentAttachment, EntityDocument, Part, Assembly
 from .. import crud, schemas
 from .auth import require_role
 
@@ -26,6 +26,47 @@ async def list_documents(skip: int = 0, limit: int = 100, keyword: str = None, s
         "file_name": d.file_name, "file_id": d.file_id,
         "created_at": d.created_at, "updated_at": d.updated_at,
     } for d in docs]
+
+@router.get("/{doc_id}/references")
+async def get_document_references(doc_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin", "engineer"]))):
+    """
+    获取图文档的引用信息
+    
+    Returns:
+        引用该图文档的零部件列表
+    """
+    # 查询引用该图文档的零部件关联记录
+    refs = db.query(EntityDocument).filter(EntityDocument.document_id == doc_id).all()
+    
+    # 构建引用信息列表
+    references = []
+    for ref in refs:
+        if ref.entity_type == 'part':
+            part = db.query(Part).filter(Part.id == ref.entity_id).first()
+            if part:
+                references.append({
+                    "entity_type": "part",
+                    "entity_id": str(part.id),
+                    "entity_code": part.code,
+                    "entity_name": part.name,
+                    "category": ref.category,
+                })
+        elif ref.entity_type == 'component':
+            assembly = db.query(Assembly).filter(Assembly.id == ref.entity_id).first()
+            if assembly:
+                references.append({
+                    "entity_type": "component",
+                    "entity_id": str(assembly.id),
+                    "entity_code": assembly.code,
+                    "entity_name": assembly.name,
+                    "category": ref.category,
+                })
+    
+    return {
+        "document_id": str(doc_id),
+        "reference_count": len(references),
+        "references": references,
+    }
 
 @router.post("/")
 async def create_document(doc: schemas.DocumentCreate, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_role(["admin", "engineer"]))):
@@ -86,6 +127,18 @@ async def delete_document(doc_id: uuid.UUID, request: Request, db: Session = Dep
     d = db.query(Document).filter(Document.id == doc_id).first()
     if not d:
         raise HTTPException(status_code=404, detail="图文档不存在")
+    
+    # 删除文件系统中的附件文件
+    attachments = db.query(DocumentAttachment).filter(DocumentAttachment.document_id == doc_id).all()
+    for att in attachments:
+        if hasattr(att, 'file_path') and att.file_path:
+            try:
+                from ..file_storage import file_storage
+                file_storage.delete_file(att.file_path)
+            except Exception as e:
+                print(f"[WARNING] Failed to delete file {att.file_path}: {e}")
+    
+    # 删除数据库中的附件记录
     db.query(DocumentAttachment).filter(DocumentAttachment.document_id == doc_id).delete()
     db.delete(d)
     db.commit()

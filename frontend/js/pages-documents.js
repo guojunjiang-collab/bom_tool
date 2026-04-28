@@ -115,8 +115,9 @@ var Documents = {
 
         html += '<td style="padding:10px 12px;font-size:13px;color:#666">' + (d.file_name ? _esc(d.file_name) : '<span style="color:#ccc">—</span>') + '</td>' +
           '<td style="padding:10px 12px;text-align:center;white-space:nowrap">' +
+            '<button class="btn-text btn-sm btn-download-doc" data-id="' + d.id + '">下载</button>' +
             '<button class="btn-text btn-sm btn-edit-doc" data-id="' + d.id + '">编辑</button>' +
-            '<button class="btn-text btn-sm btn-delete-doc" data-id="' + d.id + '">删除</button>' +
+            '<button class="btn-text btn-sm btn-delete-doc" data-id="' + d.id + '" style="color:#ff4d4f">删除</button>' +
           '</td></tr>';
       });
 
@@ -127,6 +128,9 @@ var Documents = {
         tr.onclick = function() { Documents._viewDoc(tr.dataset.id, docs); };
       });
 
+      container.querySelectorAll('.btn-download-doc').forEach(function(btn) {
+        btn.onclick = function(e) { e.stopPropagation(); Documents._downloadDoc(btn.dataset.id); };
+      });
       container.querySelectorAll('.btn-edit-doc').forEach(function(btn) {
         btn.onclick = function(e) { e.stopPropagation(); Documents._editDoc(btn.dataset.id); };
       });
@@ -267,16 +271,30 @@ var Documents = {
                 input.onchange = function() {
                   var f = input.files[0];
                   if (!f) return;
-                  UI._fileToBase64(f, function(b64) {
-                    UI.toast('正在上传...', 'info');
-                    var attData = { id: _uuid(), file_name: f.name, file_data: b64.indexOf(',') > 0 ? b64.split(',')[1] : b64 };
-                    API._fetch('POST', '/documents/' + id + '/attachments', attData).then(function(r) {
+                  
+                  UI.toast('正在上传...', 'info');
+                  
+                  // 使用新的文件上传 API
+                  uploadFile(f, 'document', id, {
+                    onProgress: function(progress) {
+                      UI.toast('上传进度: ' + progress.progress.toFixed(1) + '%', 'info');
+                    },
+                    onComplete: function(result) {
                       UI.toast('附件上传成功', 'success');
                       var all = Store.getAll('documents') || [];
                       var docObj = all.find(function(d) { return d.id === id; });
-                      if (docObj) { docObj.file_name = r.file_name; docObj.file_id = r.id; Store.saveAll('documents', all); }
+                      if (docObj) { 
+                        docObj.file_name = result.file_name; 
+                        docObj.file_id = result.id; 
+                        Store.saveAll('documents', all); 
+                      }
                       Documents._loadDocAttArea(id, docObj);
-                    }).catch(function(e) { UI.toast('上传失败: ' + e.message, 'error'); });
+                    },
+                    onError: function(error) {
+                      UI.toast('上传失败: ' + error.message, 'error');
+                    }
+                  }).catch(function(e) { 
+                    UI.toast('上传失败: ' + e.message, 'error'); 
                   });
                 };
                 input.click();
@@ -298,37 +316,107 @@ var Documents = {
 
     var dlBtn = document.getElementById('btn-download-doc-att');
     if (dlBtn) dlBtn.onclick = function() {
-      API._fetch('GET', '/documents/' + docId + '/attachments/' + doc.file_id).then(function(a) {
-        if (a && a.file_data) UI._downloadBase64(a.file_data, a.file_name);
-        else UI.toast('附件数据为空', 'warning');
-      }).catch(function(e) { UI.toast('下载失败: ' + e.message, 'error'); });
+      // 使用新的下载 API
+      downloadFile(doc.file_id).then(function(blob) {
+        // 创建下载链接
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = doc.file_name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }).catch(function(e) { 
+        UI.toast('下载失败: ' + e.message, 'error'); 
+      });
     };
 
     var delBtn = document.getElementById('btn-delete-doc-att');
     if (delBtn) delBtn.onclick = function() {
       if (!confirm('确定要删除此附件吗？')) return;
-      API._fetch('DELETE', '/documents/' + docId + '/attachments/' + doc.file_id).then(function() {
-        UI.toast('附件已删除', 'success');
-        var all = Store.getAll('documents') || [];
-        var docObj = all.find(function(d) { return d.id === docId; });
-        if (docObj) { docObj.file_name = null; docObj.file_id = null; Store.saveAll('documents', all); }
-        Documents._loadDocAttArea(docId, null);
-      }).catch(function(e) { UI.toast('删除失败: ' + e.message, 'error'); });
+      
+      // 使用新的删除 API
+      fetch('/api/v2/attachments/' + doc.file_id, { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(r) {
+          UI.toast('附件已删除', 'success');
+          var all = Store.getAll('documents') || [];
+          var docObj = all.find(function(d) { return d.id === docId; });
+          if (docObj) { docObj.file_name = null; docObj.file_id = null; Store.saveAll('documents', all); }
+          Documents._loadDocAttArea(docId, docObj);
+        })
+        .catch(function(e) { UI.toast('删除失败: ' + e.message, 'error'); });
     };
   },
   
+  _downloadDoc: function(id) {
+    var localDocs = Store.getAll('documents') || [];
+    var doc = localDocs.find(function(d) { return d.id === id; });
+    if (!doc) return;
+    
+    // 检查是否有附件
+    if (!doc.file_id) {
+      UI.alert('该图文档没有附件');
+      return;
+    }
+    
+    // 下载附件
+    UI.toast('正在下载...', 'info');
+    downloadFile(doc.file_id).then(function(blob) {
+      // 创建下载链接
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = doc.file_name || 'attachment';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      UI.toast('下载完成', 'success');
+    }).catch(function(e) {
+      UI.toast('下载失败: ' + e.message, 'error');
+    });
+  },
+
   _deleteDoc: function(id) {
     var localDocs = Store.getAll('documents') || [];
     var doc = localDocs.find(function(d) { return d.id === id; });
     if (!doc) return;
-    UI.confirm('确定要删除图文档 <strong>' + _esc(doc.code) + ' — ' + _esc(doc.name) + '</strong> 吗？', async function() {
-      try {
-        await API._fetch('DELETE', '/documents/' + id);
-        var all = (Store.getAll('documents') || []).filter(function(d) { return d.id !== id; });
-        Store.saveAll('documents', all);
-        UI.toast('图文档已删除', 'success');
-        Documents.render(document.getElementById('content'));
-      } catch (e) { UI.toast('删除失败: ' + (e.message || '未知错误'), 'error'); }
+    
+    // 先调用后端 API 检查图文档是否被零部件关联
+    API._fetch('GET', '/documents/' + id + '/references').then(function(refInfo) {
+      // 如果被关联，直接弹出 UI.alert 对话框
+      if (refInfo.reference_count > 0) {
+        UI.alert('该图文档被引用，不能被删除');
+        return;
+      }
+      
+      // 如果没有被关联，弹出确认对话框
+      UI.confirm('确定要删除图文档 <strong>' + _esc(doc.code) + ' - ' + _esc(doc.name) + '</strong> 吗？', async function() {
+        try {
+          await API._fetch('DELETE', '/documents/' + id);
+          var all = (Store.getAll('documents') || []).filter(function(d) { return d.id !== id; });
+          Store.saveAll('documents', all);
+          UI.toast('图文档已删除', 'success');
+          Documents.render(document.getElementById('content'));
+        } catch (e) {
+          UI.toast('删除失败: ' + (e.message || '未知错误'), 'error');
+        }
+      });
+    }).catch(function(e) {
+      // 如果检查引用失败，仍然弹出确认对话框
+      UI.confirm('确定要删除图文档 <strong>' + _esc(doc.code) + ' - ' + _esc(doc.name) + '</strong> 吗？', async function() {
+        try {
+          await API._fetch('DELETE', '/documents/' + id);
+          var all = (Store.getAll('documents') || []).filter(function(d) { return d.id !== id; });
+          Store.saveAll('documents', all);
+          UI.toast('图文档已删除', 'success');
+          Documents.render(document.getElementById('content'));
+        } catch (e) {
+          UI.toast('删除失败: ' + (e.message || '未知错误'), 'error');
+        }
+      });
     });
   }
 };

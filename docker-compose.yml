@@ -33,6 +33,12 @@ services:
       - POSTGRES_PORT=5432
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - UPLOAD_DIR=/app/uploads
+      - CHUNK_DIR=/app/uploads/chunks
+      - MAX_FILE_SIZE=104857600
+      - CHUNK_SIZE=5242880
+    volumes:
+      - ./uploads:/app/uploads
     depends_on:
       - postgres
       - redis

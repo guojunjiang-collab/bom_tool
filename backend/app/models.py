@@ -95,8 +95,10 @@ class DocumentAttachment(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     document_id = Column(UUID(as_uuid=True), ForeignKey('documents.id', ondelete='CASCADE'), nullable=False)
     file_name = Column(String(255))
-    file_data = Column(LargeBinary)
+    file_data = Column(LargeBinary)  # 保留用于向后兼容
     file_size = Column(Integer)
+    file_path = Column(String(512))  # 新增：文件系统路径
+    file_hash = Column(String(64))   # 新增：文件哈希值
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class EntityDocument(Base):
