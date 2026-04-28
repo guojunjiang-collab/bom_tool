@@ -81,7 +81,7 @@ var Documents = {
       });
 
       html += '<th>主附件</th>' +
-        '<th>操作</th>' +
+        '<th style="text-align:right">操作</th>' +
         '</tr></thead><tbody>';
 
       // 构建表格行
@@ -89,8 +89,8 @@ var Documents = {
         html += '<tr style="border-bottom:1px solid #f0f0f0;cursor:pointer" data-id="' + d.id + '">' +
           '<td style="padding:10px 12px;font-weight:500;white-space:nowrap">' + _esc(d.code) + '</td>' +
           '<td style="padding:10px 12px">' + _esc(d.name) + '</td>' +
-          '<td style="padding:10px 12px;text-align:center"><span class="tag" style="background:#e6f7ff;color:#1890ff">' + _esc(d.version) + '</span></td>' +
-          '<td style="padding:10px 12px;text-align:center">' + UI.statusTag(d.status || 'draft') + '</td>';
+          '<td style="padding:10px 12px"><span class="tag" style="background:#e6f7ff;color:#1890ff">' + _esc(d.version) + '</span></td>' +
+          '<td style="padding:10px 12px">' + UI.statusTag(d.status || 'draft') + '</td>';
 
         // 添加自定义字段值列
         var cfValues = d.customFields || {};
@@ -114,7 +114,7 @@ var Documents = {
         });
 
         html += '<td style="padding:10px 12px;font-size:13px;color:#666">' + (d.file_name ? _esc(d.file_name) : '<span style="color:#ccc">—</span>') + '</td>' +
-          '<td style="padding:10px 12px;text-align:center;white-space:nowrap">' +
+          '<td style="padding:10px 12px;text-align:right;white-space:nowrap">' +
             '<button class="btn-text btn-sm btn-download-doc" data-id="' + d.id + '">下载</button>' +
             '<button class="btn-text btn-sm btn-edit-doc" data-id="' + d.id + '">编辑</button>' +
             '<button class="btn-text btn-sm btn-delete-doc" data-id="' + d.id + '" style="color:#ff4d4f">删除</button>' +
@@ -153,9 +153,8 @@ var Documents = {
       '<div class="form-row"><div class="form-group" style="flex:1"><label>描述</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa">' + (doc.description ? _esc(doc.description) : '<span style="color:#ccc">—</span>') + '</div></div><div class="form-group" style="flex:1"><label>主附件</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa">' + (doc.file_name ? _esc(doc.file_name) : '<span style="color:#ccc">未上传</span>') + '</div></div></div>' +
       '<div id="doc-cf-view-area"></div>';
 
-    UI.modal('图文档详情 — ' + doc.code, html, {
-      footer: '<button class="btn-outline" onclick="UI.closeModal()">关闭</button>' +
-        '<button class="btn-primary" onclick="UI.closeModal();Documents._editDoc(\'' + doc.id + '\')">编辑</button>',
+    UI.modal('图文档详情', html, {
+      footer: '<button class="btn-outline" onclick="UI.closeModal()">关闭</button>',
       afterRender: function() {
         _loadDocCFDefs().then(function(cfDefs) {
           // 从服务器获取该文档的自定义字段值，避免本地缓存为空
@@ -225,10 +224,19 @@ var Documents = {
         '<div class="form-group"><label>描述</label><textarea id="doc-description" rows="3" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px">' + (doc ? _esc(doc.description || '') : '') + '</textarea></div>' +
         '<div id="doc-cf-edit-area">' + cfHtml + '</div>' +
         '<div id="doc-att-area"></div>',
-        { footer: '<button class="btn-outline" onclick="UI.closeModal()">取消</button><button class="btn-primary" id="btn-save-doc">保存</button>' +
+        { footer: '<button class="btn-outline" onclick="UI.closeModal()">取消</button>' +
+          (doc && doc.status === 'released' ? '<button class="btn-outline" id="btn-upgrade-doc" style="margin-left:8px">升版</button>' : '') +
+          '<button class="btn-primary" id="btn-save-doc">保存</button>' +
           (!isNew ? '<button class="btn-outline" style="margin-left:8px" id="btn-upload-doc-att">上传/替换附件</button>' : ''),
           afterRender: function() {
             if (!isNew) Documents._loadDocAttArea(doc.id, doc);
+
+            // 升版按钮事件
+            if (doc && doc.status === 'released' && document.getElementById('btn-upgrade-doc')) {
+              document.getElementById('btn-upgrade-doc').onclick = function() {
+                Documents._upgradeDoc(doc.id);
+              };
+            }
 
             document.getElementById('btn-save-doc').onclick = async function() {
               var code = document.getElementById('doc-code').value.trim();
@@ -350,6 +358,63 @@ var Documents = {
     };
   },
   
+  _upgradeDoc: function(id) {
+    var localDocs = Store.getAll('documents') || [];
+    var doc = localDocs.find(function(d) { return d.id === id; });
+    if (!doc) return;
+    
+    // 只能对 released 状态的图文档进行升版
+    if (doc.status !== 'released') {
+      UI.alert('只有"发布"状态的图文档可以升版');
+      return;
+    }
+    
+    // 检查是否是最新版本：查找同编码的其他图文档
+    var allDocs = localDocs.filter(function(d) { return d.code === doc.code; });
+    var maxV = allDocs.reduce(function(max, d) {
+      var v = d.version || 'A';
+      var cv = v.charCodeAt(0);
+      return cv > max ? cv : max;
+    }, 0);
+    
+    if ((doc.version || 'A').charCodeAt(0) < maxV) {
+      UI.alert('该图文档存在更新版本，不能重复升版');
+      return;
+    }
+    
+    // 计算新版本号：A->B->C->D...
+    var v = doc.version || 'A';
+    var newV = String.fromCharCode(v.charCodeAt(0) + 1);
+    if (newV > 'Z') {
+      UI.toast('版本号已超过Z，不再支持升版', 'error');
+      return;
+    }
+    
+    // 创建新图文档
+    var newDoc = {
+      id: _uuid(),
+      code: doc.code,
+      name: doc.name,
+      version: newV,
+      status: 'draft',
+      description: '',
+    };
+    
+    // 保存到后端
+    API._fetch('POST', '/documents/', newDoc).then(function(result) {
+      // 保存到本地存储
+      var all = Store.getAll('documents') || [];
+      all.push(result);
+      Store.saveAll('documents', all);
+      
+      UI.closeModal();
+      UI.toast('升版成功，新版本: ' + newV, 'success');
+      Documents.render(document.getElementById('content'));
+    }).catch(function(e) {
+      UI.toast('升版失败: ' + (e.message || '未知错误'), 'error');
+    });
+  },
+
   _downloadDoc: function(id) {
     var localDocs = Store.getAll('documents') || [];
     var doc = localDocs.find(function(d) { return d.id === id; });

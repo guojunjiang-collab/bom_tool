@@ -342,7 +342,7 @@ var Parts = {
         '<div class="form-row"><div class="form-group"><label>状态</label>' + UI.statusTag(part.status) + '</div></div>' +
           '<div id="part-cf-view-area"></div>' +
         '<div id="view-part-edocs-area">' + Parts._renderAttachmentsView(part) + '</div>',
-        { footer: '<button class="btn-primary" onclick="UI.closeModal()">关闭</button>',
+        { large: true, footer: '<button class="btn-primary" onclick="UI.closeModal()">关闭</button>',
       afterRender: function() {
         if (part && part.id) {
           // 加载关联图文档数据
@@ -366,11 +366,65 @@ var Parts = {
                 });
                 Promise.all(cfValuePromises).then(function() {
                   var area = document.getElementById('view-part-edocs-area');
-                  if (area) area.innerHTML = Parts._renderAttachmentsView(part, cfDefs);
+                  if (area) {
+                    area.innerHTML = Parts._renderAttachmentsView(part, cfDefs);
+                    
+                    // 为下载按钮添加事件监听器
+                    area.querySelectorAll('.btn-download-edoc').forEach(function(btn) {
+                      btn.onclick = function() {
+                        var fileId = btn.dataset.fileId;
+                        var fileName = btn.dataset.fileName;
+                        
+                        // 下载附件
+                        UI.toast('正在下载...', 'info');
+                        downloadFile(fileId).then(function(blob) {
+                          // 创建下载链接
+                          var url = URL.createObjectURL(blob);
+                          var a = document.createElement('a');
+                          a.href = url;
+                          a.download = fileName;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
+                          UI.toast('下载完成', 'success');
+                        }).catch(function(e) {
+                          UI.toast('下载失败: ' + e.message, 'error');
+                        });
+                      };
+                    });
+                  }
                 });
               } else {
                 var area = document.getElementById('view-part-edocs-area');
-                if (area) area.innerHTML = Parts._renderAttachmentsView(part, cfDefs);
+                if (area) {
+                  area.innerHTML = Parts._renderAttachmentsView(part, cfDefs);
+                  
+                  // 为下载按钮添加事件监听器
+                  area.querySelectorAll('.btn-download-edoc').forEach(function(btn) {
+                    btn.onclick = function() {
+                      var fileId = btn.dataset.fileId;
+                      var fileName = btn.dataset.fileName;
+                      
+                      // 下载附件
+                      UI.toast('正在下载...', 'info');
+                      downloadFile(fileId).then(function(blob) {
+                        // 创建下载链接
+                        var url = URL.createObjectURL(blob);
+                        var a = document.createElement('a');
+                        a.href = url;
+                        a.download = fileName;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        UI.toast('下载完成', 'success');
+                      }).catch(function(e) {
+                        UI.toast('下载失败: ' + e.message, 'error');
+                      });
+                    };
+                  });
+                }
               }
             });
             // 同时刷新 CF 展示区，确保显示服务器端的自定义字段
@@ -401,7 +455,8 @@ var Parts = {
       html += '<th style="padding:6px 10px;text-align:left;font-size:12px;color:#888;font-weight:600;white-space:nowrap">' + _esc(cf.name) + '</th>';
     });
     
-    html += '<th style="padding:6px 10px;text-align:left;font-size:12px;color:#888;font-weight:600;white-space:nowrap">主附件</th></tr></thead><tbody>';
+    html += '<th style="padding:6px 10px;text-align:left;font-size:12px;color:#888;font-weight:600;white-space:nowrap">主附件</th>' +
+      '<th style="padding:6px 10px;text-align:center;font-size:12px;color:#888;font-weight:600;white-space:nowrap">操作</th></tr></thead><tbody>';
     
     edocList.forEach(function(ed) {
       var d = ed.document || {};
@@ -432,7 +487,10 @@ var Parts = {
         html += '<td style="padding:6px 10px;font-size:13px">' + displayVal + '</td>';
       });
       
-      html += '<td style="padding:6px 10px">' + (d.file_name ? _esc(d.file_name) : '<span style="color:#ccc">—</span>') + '</td></tr>';
+      html += '<td style="padding:6px 10px">' + (d.file_name ? _esc(d.file_name) : '<span style="color:#ccc">—</span>') + '</td>' +
+        '<td style="padding:6px 10px;text-align:center">' +
+          (d.file_id ? '<button class="btn-link btn-download-edoc" data-file-id="' + d.file_id + '" data-file-name="' + _esc(d.file_name || 'attachment') + '">下载</button>' : '<span style="color:#ccc">—</span>') +
+        '</td></tr>';
     });
     html += '</tbody></table>';
     return html;
