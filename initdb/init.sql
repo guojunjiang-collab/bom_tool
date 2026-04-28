@@ -99,6 +99,8 @@ CREATE TABLE document_attachments (
     file_name VARCHAR(255),
     file_data BYTEA,
     file_size INTEGER,
+    file_path VARCHAR(512),
+    file_hash VARCHAR(64),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
