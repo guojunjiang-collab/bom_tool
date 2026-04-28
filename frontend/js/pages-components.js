@@ -7,8 +7,19 @@ var Components = {
 
     var _f = { status: '', sort: { field:'code', dir:'asc' } };
 
-    function render() {
+    // 创建页面结构（只创建一次）
+    var canE = Auth.canEdit();
+    c.innerHTML =
+      '<div class="page-header"><h2>📦 部件管理</h2><div class="actions">' +
+        (canE ? '<button class="btn-primary" id="btn-add-cp">＋ 新增部件</button>' : '') +
+      '</div></div>' +
+      '<div class="card"><div class="toolbar"><div class="search-box"><input type="text" id="cs" placeholder="搜索件号/名称..." style="width:100%"></div>' +
+        '<select id="cst"><option value="">全部状态</option><option value="draft">草稿</option><option value="frozen">冻结</option><option value="released">发布</option><option value="obsolete">作废</option></select>' +
+        '<div class="spacer"></div><span style="font-size:13px;color:var(--text-secondary)" id="components-count">共 0 条</span></div>' +
+      '<div class="table-wrapper" id="components-table-area"></div></div>';
 
+    // 渲染表格（不重新创建搜索框）
+    function renderList() {
       var data = Store.getAll('components');
 
       if (_kw) { var k = _kw.toLowerCase(); data = data.filter(function(c2) { return c2.code.toLowerCase().indexOf(k) >= 0 || c2.name.toLowerCase().indexOf(k) >= 0; }); }
@@ -16,122 +27,68 @@ var Components = {
       if (_f.status) { data = data.filter(function(c2) { return c2.status === _f.status; }); }
 
       if (_f.sort.field) {
-
         data.sort(function(a, b) {
-
           var av = a[_f.sort.field]||'', bv = b[_f.sort.field]||'';
-
           if (av < bv) return _f.sort.dir === 'asc' ? -1 : 1;
-
           if (av > bv) return _f.sort.dir === 'asc' ? 1 : -1;
-
           return 0;
-
         });
-
       }
 
-      c.innerHTML =
+      // 更新计数
+      var countEl = document.getElementById('components-count');
+      if (countEl) countEl.textContent = '共 ' + data.length + ' 条';
 
-        '<div class="page-header"><h2>📦 部件管理</h2><div class="actions">' +
-
-          (Auth.canEdit() ? '<button class="btn-primary" id="btn-add-cp">＋ 新增部件</button>' : '') +
-
-        '</div></div>' +
-
-        '<div class="card"><div class="toolbar"><div class="search-box"><input type="text" id="cs" placeholder="搜索件号/名称..." value="' + _esc(_kw) + '"></div>' +
-
-          '<select id="cst"><option value="">全部状态</option><option value="draft"' + (_f.status === 'draft' ? ' selected' : '') + '>草稿</option><option value="frozen"' + (_f.status === 'frozen' ? ' selected' : '') + '>冻结</option><option value="released"' + (_f.status === 'released' ? ' selected' : '') + '>发布</option><option value="obsolete"' + (_f.status === 'obsolete' ? ' selected' : '') + '>作废</option></select>' +
-
-          '<div class="spacer"></div><span style="font-size:13px;color:var(--text-secondary)">共 ' + data.length + ' 条</span></div>' +
-
-        '<div class="table-wrapper"><table id="components-table"><thead><tr><th data-sort="code" class="th-sortable">件号<span class="th-sort-icon"></span></th><th data-sort="name" class="th-sortable">中文名称<span class="th-sort-icon"></span></th><th data-sort="spec" class="th-sortable">规格型号<span class="th-sort-icon"></span></th><th data-sort="version" class="th-sortable">版本<span class="th-sort-icon"></span></th><th data-sort="parts" class="th-sortable">零件数<span class="th-sort-icon"></span></th><th data-sort="status" class="th-sortable">状态<span class="th-sort-icon"></span></th><th data-sort="updatedAt" class="th-sortable">更新时间<span class="th-sort-icon"></span></th><th>操作</th></tr></thead><tbody>' +
-
+      // 渲染表格
+      var container = document.getElementById('components-table-area');
+      if (!container) return;
+      container.innerHTML = '<table id="components-table"><thead><tr><th data-sort="code" class="th-sortable">部件件号<span class="th-sort-icon"></span></th><th data-sort="name" class="th-sortable">中文名称<span class="th-sort-icon"></span></th><th data-sort="spec" class="th-sortable">规格型号<span class="th-sort-icon"></span></th><th data-sort="version" class="th-sortable">版本<span class="th-sort-icon"></span></th><th data-sort="parts" class="th-sortable">零件数<span class="th-sort-icon"></span></th><th data-sort="status" class="th-sortable">状态<span class="th-sort-icon"></span></th><th data-sort="updatedAt" class="th-sortable">更新时间<span class="th-sort-icon"></span></th><th>操作</th></tr></thead><tbody>' +
         (data.length === 0 ? '<tr><td colspan="8" style="text-align:center;color:var(--text-light);padding:40px">暂无数据</td></tr>' :
+          data.map(function(c2) { return '<tr onclick="Components._viewComp(\'' + c2.id + '\');" style="cursor:pointer"><td>' + c2.code + '</td><td>' + c2.name + '</td><td>' + (c2.spec||'-') + '</td><td><span class="tag" style="background:#e6f7ff;color:#1890ff;font-weight:600">' + c2.version + '</span></td><td>' + (c2.parts||[]).length + ' 种</td><td>' + UI.statusTag(c2.status) + '</td><td style="font-size:12px;color:var(--text-secondary)">' + UI.formatDate(c2.updatedAt) + '</td><td>' + (canE ? '<button class="btn-text" onclick="event.stopPropagation();Components._exportBom(\'' + c2.id + '\')">导出</button><button class="btn-text" onclick="event.stopPropagation();Components._editComp(\'' + c2.id + '\')">编辑</button><button class="btn-text danger" onclick="event.stopPropagation();Components._deleteComp(\'' + c2.id + '\')">删除</button>' : '') + '</td></tr>'; }).join('')) +
+        '</tbody></table>';
 
-          data.map(function(c2) { return '<tr onclick="Components._viewComp(\'' + c2.id + '\');" style="cursor:pointer"><td>' + c2.code + '</td><td>' + c2.name + '</td><td>' + (c2.spec||'-') + '</td><td><span class="tag" style="background:#e6f7ff;color:#1890ff;font-weight:600">' + c2.version + '</span></td><td>' + (c2.parts||[]).length + ' 种</td><td>' + UI.statusTag(c2.status) + '</td><td style="font-size:12px;color:var(--text-secondary)">' + UI.formatDate(c2.updatedAt) + '</td><td>' + (Auth.canEdit() ? '<button class="btn-text" onclick="event.stopPropagation();Components._exportBom(\'' + c2.id + '\')">导出</button><button class="btn-text" onclick="event.stopPropagation();Components._editComp(\'' + c2.id + '\')">编辑</button><button class="btn-text danger" onclick="event.stopPropagation();Components._deleteComp(\'' + c2.id + '\')">删除</button>' : '') + '</td></tr>'; }).join('')) +
-
-        '</tbody></table></div></div>';
-
-      var _cs = document.getElementById('cs');
-
-      var _csSel = [_cs.selectionStart, _cs.selectionEnd];
-
-      _cs.value = _kw;
-
-      _cs.setSelectionRange(_csSel[0], _csSel[1]);
-
-      var _csTimer;
-
-      document.getElementById('cs').oninput = function(e) {
-
-        var val = e.target.value, pos = e.target.selectionStart;
-
-        clearTimeout(_csTimer);
-
-        _csTimer = setTimeout(function() {
-
-          _kw = val;
-
-          render();
-
-          var n = document.getElementById('cs'); if (n) { n.value = val; n.setSelectionRange(pos, pos); }
-
-        }, 250);
-
-      };
-
-      document.getElementById('cst').onchange = function(e) { _f.status = e.target.value; render(); };
-
+      // 排序角标 & 点击事件
       document.querySelectorAll('#components-table th[data-sort]').forEach(function(th) {
-
         var f = th.getAttribute('data-sort');
-
         var ic = th.querySelector('.th-sort-icon');
-
         th.classList.remove('sorted');
-
         ic.className = 'th-sort-icon';
-
         if (_f.sort.field === f) {
-
           th.classList.add('sorted');
-
           ic.classList.add(_f.sort.dir);
-
         }
-
         th.onclick = function() {
-
-          _f.page = 1;
-
           if (_f.sort.field === f) {
-
             _f.sort.dir = _f.sort.dir === 'asc' ? 'desc' : 'asc';
-
           } else {
-
             _f.sort.field = f; _f.sort.dir = 'asc';
-
           }
-
-          render();
-
+          renderList();
         };
-
       });
-
-      var ab = document.getElementById('btn-add-cp');
-
-      if (ab) ab.onclick = function() { Components._editComp(null); };
-
     }
 
-    render();
+    // 初始渲染
+    renderList();
 
+    // 事件监听
+    var _csTimer;
+    document.getElementById('cs').oninput = function(e) {
+      clearTimeout(_csTimer);
+      _csTimer = setTimeout(function() {
+        _kw = document.getElementById('cs').value.trim();
+        renderList();
+      }, 250);
+    };
+
+    document.getElementById('cst').onchange = function(e) {
+      _f.status = e.target.value;
+      renderList();
+    };
+
+    var ab = document.getElementById('btn-add-cp');
+    if (ab) ab.onclick = function() { Components._editComp(null); };
   },
-
-
 
   /* ===== 部件BOM导出 ===== */
 
@@ -436,7 +393,7 @@ var Components = {
 
     UI.modal('部件详情 - ' + comp.name,
 
-      '<div class="form-row"><div class="form-group"><label>件号</label><input type="text" value="' + _esc(comp.code) + '" readonly></div><div class="form-group"><label>中文名称</label><input type="text" value="' + _esc(comp.name) + '" readonly></div></div>' +
+      '<div class="form-row"><div class="form-group"><label>部件件号</label><input type="text" value="' + _esc(comp.code) + '" readonly></div><div class="form-group"><label>中文名称</label><input type="text" value="' + _esc(comp.name) + '" readonly></div></div>' +
       '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" value="' + _esc(comp.spec||'') + '" readonly></div><div class="form-group"><label>版本</label><input type="text" value="' + (comp.version||'A') + '" readonly></div></div>' +
       '<div class="form-row"><div class="form-group"><label>状态</label>' + UI.statusTag(comp.status) + '</div></div>' +
       cfHtml +
@@ -453,13 +410,37 @@ var Components = {
 
       { large: true, footer: '<button class="btn-primary" id="btn-comp-detail-close" onclick="UI.closeModal()">关闭</button>',
         afterRender: function() {
+          // 加载关联图文档数据
           API._fetch('GET', '/assemblies/' + comp.id + '/documents').then(function(list) {
             comp._entityDocs = list;
             var allComps = Store.getAll('components');
             var cIdx = allComps.findIndex(function(c) { return c.id === comp.id; });
             if (cIdx >= 0) allComps[cIdx]._entityDocs = list;
-            var area = document.getElementById('comp-view-edocs-area');
-            if (area) area.innerHTML = Components._renderAttachmentsView(comp);
+            // 加载自定义字段定义
+            _loadDocCFDefs().then(function(cfDefs) {
+              cfDefs = cfDefs || [];
+              // 如果有自定义字段定义，批量获取所有关联图文档的自定义字段值
+              if (cfDefs.length > 0 && list.length > 0) {
+                var cfValuePromises = list.map(function(ed) {
+                  var d = ed.document || {};
+                  if (!d.id) return Promise.resolve();
+                  return API.getCustomFieldValues('document', d.id).then(function(values) {
+                    var cfMap = {};
+                    (values || []).forEach(function(v) { if (v.field_key) cfMap[v.field_key] = v.value; });
+                    d.customFields = cfMap;
+                  }).catch(function() {
+                    d.customFields = {};
+                  });
+                });
+                Promise.all(cfValuePromises).then(function() {
+                  var area = document.getElementById('comp-view-edocs-area');
+                  if (area) area.innerHTML = Components._renderAttachmentsView(comp, cfDefs);
+                });
+              } else {
+                var area = document.getElementById('comp-view-edocs-area');
+                if (area) area.innerHTML = Components._renderAttachmentsView(comp, cfDefs);
+              }
+            });
           });
         }
       });
@@ -551,7 +532,7 @@ var Components = {
 
     UI.modal(comp ? '编辑部件' : '新增部件',
 
-      '<div class="form-row"><div class="form-group"><label>部件件号 <span class="required">*</span></label><input type="text" id="fc-code" value="' + _esc(comp ? comp.code : '') + '"' + ro + '></div><div class="form-group"><label>部件中文名称 <span class="required">*</span></label><input type="text" id="fc-name" value="' + _esc(comp ? comp.name : '') + '"' + ro + '></div></div>' +
+      '<div class="form-row"><div class="form-group"><label>部件件号 <span class="required">*</span></label><input type="text" id="fc-code" value="' + _esc(comp ? comp.code : '') + '"' + (comp ? ' readonly' : '') + '></div><div class="form-group"><label>部件中文名称 <span class="required">*</span></label><input type="text" id="fc-name" value="' + _esc(comp ? comp.name : '') + '"' + ro + '></div></div>' +
 
       '<div class="form-group"><label>规格型号</label><input type="text" id="fc-spec" value="' + _esc(comp ? comp.spec||'' : '') + '"' + ro + '></div>' +
 
@@ -1373,17 +1354,57 @@ var Components = {
   },
 
   // 渲染附件显示（详情页）
-  _renderAttachmentsView: function(comp) {
+  _renderAttachmentsView: function(comp, cfDefs) {
     var edocList = (comp._entityDocs || []);
     var html = '';
     if (edocList.length === 0) {
       html += '<div style="padding:12px;text-align:center;color:#999;font-size:13px">暂无关联图文档</div>';
       return html;
     }
-    html += '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#fafafa"><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">图文档编号</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">图文档名称</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">版本</th><th style="padding:6px 10px;text-align:center;font-size:12px;color:#888">状态</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">主附件</th></tr></thead><tbody>';
+    // 构建表头 - 自适应宽度
+    html += '<table style="width:100%;border-collapse:collapse;table-layout:auto"><thead><tr style="background:#fafafa">' +
+      '<th style="padding:6px 10px;text-align:left;font-size:12px;color:#888;font-weight:600;white-space:nowrap">图文档编号</th>' +
+      '<th style="padding:6px 10px;text-align:left;font-size:12px;color:#888;font-weight:600;white-space:nowrap">图文档名称</th>' +
+      '<th style="padding:6px 10px;text-align:center;font-size:12px;color:#888;font-weight:600;white-space:nowrap">版本</th>' +
+      '<th style="padding:6px 10px;text-align:center;font-size:12px;color:#888;font-weight:600;white-space:nowrap">状态</th>';
+    
+    // 添加自定义字段列头
+    (cfDefs || []).forEach(function(cf) {
+      html += '<th style="padding:6px 10px;text-align:left;font-size:12px;color:#888;font-weight:600;white-space:nowrap">' + _esc(cf.name) + '</th>';
+    });
+    
+    html += '<th style="padding:6px 10px;text-align:left;font-size:12px;color:#888;font-weight:600;white-space:nowrap">主附件</th></tr></thead><tbody>';
+    
     edocList.forEach(function(ed) {
       var d = ed.document || {};
-      html += '<tr style="border-bottom:1px solid #f0f0f0"><td style="padding:6px 10px;font-weight:500">' + _esc(d.code || '') + '</td><td style="padding:6px 10px">' + _esc(d.name || '') + '</td><td style="padding:6px 10px">' + _esc(d.version || '') + '</td><td style="padding:6px 10px;text-align:center">' + UI.statusTag(d.status || 'draft') + '</td><td style="padding:6px 10px">' + (d.file_name ? _esc(d.file_name) : '<span style="color:#ccc">—</span>') + '</td></tr>';
+      html += '<tr style="border-bottom:1px solid #f0f0f0">' +
+        '<td style="padding:6px 10px;font-weight:500;white-space:nowrap">' + _esc(d.code || '') + '</td>' +
+        '<td style="padding:6px 10px">' + _esc(d.name || '') + '</td>' +
+        '<td style="padding:6px 10px;text-align:center"><span class="tag" style="background:#e6f7ff;color:#1890ff">' + _esc(d.version || '') + '</span></td>' +
+        '<td style="padding:6px 10px;text-align:center">' + UI.statusTag(d.status || 'draft') + '</td>';
+      
+      // 添加自定义字段值列
+      var cfValues = d.customFields || {};
+      (cfDefs || []).forEach(function(cf) {
+        var val = cfValues[cf.field_key];
+        var displayVal = '';
+        if (val !== undefined && val !== null && val !== '') {
+          if (cf.field_type === 'multiselect' && Array.isArray(val)) {
+            displayVal = val.map(function(v) { return '<span class="tag" style="background:#e6f7ff;color:#1890ff;margin:1px;font-size:11px">' + _esc(String(v)) + '</span>'; }).join(' ');
+          } else if (cf.field_type === 'select') {
+            displayVal = '<span class="tag" style="background:#f6ffed;color:#52c41a">' + _esc(String(val)) + '</span>';
+          } else if (cf.field_type === 'number') {
+            displayVal = '<span style="font-weight:600;color:#1890ff">' + _esc(String(val)) + '</span>';
+          } else {
+            displayVal = _esc(String(val));
+          }
+        } else {
+          displayVal = '<span style="color:#ccc">—</span>';
+        }
+        html += '<td style="padding:6px 10px;font-size:13px">' + displayVal + '</td>';
+      });
+      
+      html += '<td style="padding:6px 10px">' + (d.file_name ? _esc(d.file_name) : '<span style="color:#ccc">—</span>') + '</td></tr>';
     });
     html += '</tbody></table>';
     return html;
@@ -1397,12 +1418,12 @@ var Components = {
     function render(edocs) {
       var html = '<h4 style="margin:16px 0 12px;border-top:1px solid #f0f0f0;padding-top:16px">📎 关联图文档</h4>' +
         '<div id="comp-edoc-list-area"></div>' +
-        '<button class="btn-outline btn-sm" id="comp-btn-add-edoc" style="margin-top:8px">+ 关联图文文档</button>';
+        '<button class="btn-outline btn-sm" id="comp-btn-add-edoc" style="margin-top:8px">+ 关联图文档</button>';
       container.innerHTML = html;
 
       var listArea = document.getElementById('comp-edoc-list-area');
       if (!edocs || edocs.length === 0) {
-        listArea.innerHTML = '<div style="padding:12px;text-align:center;color:#999;font-size:13px">暂无关联，点击下方"关联文本档"添加</div>';
+        listArea.innerHTML = '<div style="padding:12px;text-align:center;color:#999;font-size:13px">暂无关联，点击下方"关联图文档"添加</div>';
       } else {
         edocs.forEach(function(ed) {
           var d = ed.document || {};
@@ -1461,27 +1482,87 @@ var Components = {
     
     window._docSelectorState = {
       filteredDocs: filteredDocs,
-      selectedDocs: []
+      selectedDocs: [],
+      cfDefs: null // 缓存自定义字段定义
     };
     
+    // 加载自定义字段定义
+    _loadDocCFDefs().then(function(cfDefs) {
+      window._docSelectorState.cfDefs = cfDefs || [];
+      // 批量获取所有可选图文档的自定义字段值
+      if (window._docSelectorState.cfDefs.length > 0 && filteredDocs.length > 0) {
+        var cfValuePromises = filteredDocs.map(function(d) {
+          return API.getCustomFieldValues('document', d.id).then(function(values) {
+            var cfMap = {};
+            (values || []).forEach(function(v) { if (v.field_key) cfMap[v.field_key] = v.value; });
+            d.customFields = cfMap;
+          }).catch(function() {
+            d.customFields = {};
+          });
+        });
+        Promise.all(cfValuePromises).then(function() {
+          _initDocSelectorUI(compId);
+        });
+      } else {
+        _initDocSelectorUI(compId);
+      }
+    });
+    
+    function _initDocSelectorUI(compId) {
     function renderSelectedDocs() {
       var container = document.getElementById('ds-selected-docs');
       if (!container) return;
       
       var selected = window._docSelectorState ? window._docSelectorState.selectedDocs : [];
+      var cfDefs = window._docSelectorState ? window._docSelectorState.cfDefs : [];
+      
       if (selected.length === 0) {
         container.innerHTML = '<p style="color:#999;font-size:12px;padding:4px 0">暂无已选图文档</p>';
         return;
       }
       
-      var h = '<table style="table-layout:fixed;width:100%;margin-bottom:4px"><thead><tr style="background:#f8f8f8"><th style="width:120px;text-align:left;padding:4px 6px;font-size:11px;color:#888">编号</th><th style="text-align:left;padding:4px 6px;font-size:11px;color:#888">名称</th><th style="width:60px;text-align:left;padding:4px 6px;font-size:11px;color:#888">版本</th><th style="width:60px;text-align:left;padding:4px 6px;font-size:11px;color:#888">状态</th><th style="width:40px"></th></tr></thead><tbody>';
+      // 构建表头 - 包含自定义字段
+      var h = '<table style="table-layout:auto;width:100%;margin-bottom:4px"><thead><tr style="background:#f8f8f8">' +
+        '<th style="text-align:left;padding:4px 6px;font-size:11px;color:#888;white-space:nowrap">编号</th>' +
+        '<th style="text-align:left;padding:4px 6px;font-size:11px;color:#888;white-space:nowrap">名称</th>' +
+        '<th style="text-align:left;padding:4px 6px;font-size:11px;color:#888;white-space:nowrap">版本</th>' +
+        '<th style="text-align:left;padding:4px 6px;font-size:11px;color:#888;white-space:nowrap">状态</th>';
+      
+      // 添加自定义字段列头
+      (cfDefs || []).forEach(function(cf) {
+        h += '<th style="text-align:left;padding:4px 6px;font-size:11px;color:#888;white-space:nowrap">' + _esc(cf.name) + '</th>';
+      });
+      
+      h += '<th style="width:40px"></th></tr></thead><tbody>';
       
       selected.forEach(function(d, idx) {
         h += '<tr style="border-bottom:1px solid #f0f0f0">';
-        h += '<td style="padding:4px 6px;font-size:12px">' + _esc(d.code || '') + '</td>';
+        h += '<td style="padding:4px 6px;font-size:12px;white-space:nowrap">' + _esc(d.code || '') + '</td>';
         h += '<td style="padding:4px 6px;font-size:12px">' + _esc(d.name || '') + '</td>';
         h += '<td style="padding:4px 6px;font-size:12px;color:#888">' + _esc(d.version || 'A') + '</td>';
         h += '<td style="padding:4px 6px;font-size:12px">' + UI.statusTag(d.status || 'draft') + '</td>';
+        
+        // 添加自定义字段值列
+        var cfValues = d.customFields || {};
+        (cfDefs || []).forEach(function(cf) {
+          var val = cfValues[cf.field_key];
+          var displayVal = '';
+          if (val !== undefined && val !== null && val !== '') {
+            if (cf.field_type === 'multiselect' && Array.isArray(val)) {
+              displayVal = val.map(function(v) { return '<span class="tag" style="background:#e6f7ff;color:#1890ff;margin:1px;font-size:10px">' + _esc(String(v)) + '</span>'; }).join(' ');
+            } else if (cf.field_type === 'select') {
+              displayVal = '<span class="tag" style="background:#f6ffed;color:#52c41a">' + _esc(String(val)) + '</span>';
+            } else if (cf.field_type === 'number') {
+              displayVal = '<span style="font-weight:600;color:#1890ff;font-size:12px">' + _esc(String(val)) + '</span>';
+            } else {
+              displayVal = _esc(String(val));
+            }
+          } else {
+            displayVal = '<span style="color:#ccc">—</span>';
+          }
+          h += '<td style="padding:4px 6px;font-size:12px">' + displayVal + '</td>';
+        });
+        
         h += '<td style="text-align:center"><button class="btn-text danger" style="font-size:12px;padding:2px 4px" onclick="Components._removeSelectedDoc(\'' + d.id + '\')">×</button></td>';
         h += '</tr>';
       });
@@ -1533,6 +1614,7 @@ var Components = {
     function renderResults(keyword) {
       var kw = (keyword || '').toLowerCase();
       var filtered = window._docSelectorState ? window._docSelectorState.filteredDocs : [];
+      var cfDefs = window._docSelectorState ? window._docSelectorState.cfDefs : [];
       
       var results = filtered.filter(function(d) {
         if (!kw) return true;
@@ -1547,10 +1629,49 @@ var Components = {
         return;
       }
       
-      var html = '<table style="table-layout:fixed;width:100%"><thead><tr style="background:#f8f8f8"><th style="width:120px;text-align:left;padding:6px 10px;font-size:12px;color:#888">编号</th><th style="text-align:left;padding:6px 10px;font-size:12px;color:#888">名称</th><th style="width:70px;text-align:left;padding:6px 10px;font-size:12px;color:#888">版本</th><th style="width:70px;text-align:left;padding:6px 10px;font-size:12px;color:#888">状态</th><th style="width:70px;text-align:center;padding:6px 10px;font-size:12px;color:#888">操作</th></tr></thead><tbody>';
+      // 构建表头 - 包含自定义字段，自适应宽度
+      var html = '<table style="table-layout:auto;width:100%"><thead><tr style="background:#f8f8f8">' +
+        '<th style="text-align:left;padding:6px 10px;font-size:12px;color:#888;white-space:nowrap">编号</th>' +
+        '<th style="text-align:left;padding:6px 10px;font-size:12px;color:#888;white-space:nowrap">名称</th>' +
+        '<th style="text-align:left;padding:6px 10px;font-size:12px;color:#888;white-space:nowrap">版本</th>' +
+        '<th style="text-align:left;padding:6px 10px;font-size:12px;color:#888;white-space:nowrap">状态</th>';
+      
+      // 添加自定义字段列头
+      (cfDefs || []).forEach(function(cf) {
+        html += '<th style="text-align:left;padding:6px 10px;font-size:12px;color:#888;white-space:nowrap">' + _esc(cf.name) + '</th>';
+      });
+      
+      html += '<th style="text-align:center;padding:6px 10px;font-size:12px;color:#888;white-space:nowrap">操作</th></tr></thead><tbody>';
       
       results.forEach(function(d) {
-        html += '<tr style="border-bottom:1px solid #f5f5f5"><td style="padding:7px 10px;font-size:13px">' + _esc(d.code || '') + '</td><td style="padding:7px 10px;font-size:13px">' + _esc(d.name || '') + '</td><td style="padding:7px 10px;font-size:13px;color:#888">' + _esc(d.version || 'A') + '</td><td style="padding:7px 10px;font-size:13px">' + UI.statusTag(d.status || 'draft') + '</td><td style="text-align:center;padding:7px 10px"><button class="btn-primary btn-sm" onclick="Components._addSelectedDoc(\'' + d.id + '\')">添加</button></td></tr>';
+        html += '<tr style="border-bottom:1px solid #f5f5f5">' +
+          '<td style="padding:7px 10px;font-size:13px;white-space:nowrap">' + _esc(d.code || '') + '</td>' +
+          '<td style="padding:7px 10px;font-size:13px">' + _esc(d.name || '') + '</td>' +
+          '<td style="padding:7px 10px;font-size:13px;color:#888">' + _esc(d.version || 'A') + '</td>' +
+          '<td style="padding:7px 10px;font-size:13px">' + UI.statusTag(d.status || 'draft') + '</td>';
+        
+        // 添加自定义字段值列
+        var cfValues = d.customFields || {};
+        (cfDefs || []).forEach(function(cf) {
+          var val = cfValues[cf.field_key];
+          var displayVal = '';
+          if (val !== undefined && val !== null && val !== '') {
+            if (cf.field_type === 'multiselect' && Array.isArray(val)) {
+              displayVal = val.map(function(v) { return '<span class="tag" style="background:#e6f7ff;color:#1890ff;margin:1px;font-size:10px">' + _esc(String(v)) + '</span>'; }).join(' ');
+            } else if (cf.field_type === 'select') {
+              displayVal = '<span class="tag" style="background:#f6ffed;color:#52c41a">' + _esc(String(val)) + '</span>';
+            } else if (cf.field_type === 'number') {
+              displayVal = '<span style="font-weight:600;color:#1890ff">' + _esc(String(val)) + '</span>';
+            } else {
+              displayVal = _esc(String(val));
+            }
+          } else {
+            displayVal = '<span style="color:#ccc">—</span>';
+          }
+          html += '<td style="padding:7px 10px;font-size:13px">' + displayVal + '</td>';
+        });
+        
+        html += '<td style="text-align:center;padding:7px 10px"><button class="btn-primary btn-sm" onclick="Components._addSelectedDoc(\'' + d.id + '\')">添加</button></td></tr>';
       });
       
       html += '</tbody></table>';
@@ -1588,6 +1709,7 @@ var Components = {
     };
     
     renderResults('');
+    } // end _initDocSelectorUI
   },
   
   _addSelectedDoc: function(docId) {

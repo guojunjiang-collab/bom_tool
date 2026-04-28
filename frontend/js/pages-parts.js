@@ -2,7 +2,22 @@ var Parts = {
   // 主零件管理页面
   render: function(c) {
     var _f = { keyword:'', status:'', page:1, size:15, sort:{field:'code', dir:'asc'} };
-    function render() {
+    
+    // 创建页面结构（只创建一次）
+    var canE = Auth.canEdit();
+    c.innerHTML =
+      '<div class="page-header"><h2>🔧 零件管理</h2><div class="actions">' +
+        '<button class="btn-outline" onclick="Parts._exportParts()">📥 导出Excel</button>' +
+        (canE ? '<button class="btn-primary" id="btn-add-part">＋ 新增零件</button>' : '') +
+      '</div></div>' +
+      '<div class="card"><div class="toolbar">' +
+        '<div class="search-box"><input type="text" id="ps" placeholder="搜索件号/名称/规格..." style="width:100%"></div>' +
+        '<select id="pst"><option value="">全部状态</option><option value="draft">草稿</option><option value="frozen">冻结</option><option value="released">发布</option><option value="obsolete">作废</option></select>' +
+        '<div class="spacer"></div><span style="font-size:13px;color:var(--text-secondary)" id="parts-count">共 0 条</span>' +
+      '</div><div class="table-wrapper" id="parts-table-area"></div></div>';
+    
+    // 渲染表格（不重新创建搜索框）
+    function renderList() {
       var data = Store.getAll('parts');
       // 处理材质可能是对象的情况
       if (_f.keyword) { var kw = _f.keyword.toLowerCase(); data = data.filter(function(p) { return p.code.toLowerCase().indexOf(kw) >= 0 || p.name.toLowerCase().indexOf(kw) >= 0 || p.spec.toLowerCase().indexOf(kw) >= 0; }); }
@@ -20,33 +35,21 @@ var Parts = {
       _f.page = Math.min(_f.page, tp);
       var start = (_f.page - 1) * _f.size;
       var pd = data.slice(start, start + _f.size);
-      var canE = Auth.canEdit();
-      c.innerHTML =
-        '<div class="page-header"><h2>🔧 零件管理</h2><div class="actions">' +
-          '<button class="btn-outline" onclick="Parts._exportParts()">📥 导出Excel</button>' +
-          (canE ? '<button class="btn-primary" id="btn-add-part">＋ 新增零件</button>' : '') +
-        '</div></div>' +
-        '<div class="card"><div class="toolbar">' +
-          '<div class="search-box"><input type="text" id="ps" placeholder="搜索件号/名称/规格..." value="' + _esc(_f.keyword) + '"></div>' +
-          '<select id="pst"><option value="">全部状态</option><option value="draft"' + (_f.status === 'draft' ? ' selected' : '') + '>草稿</option><option value="frozen"' + (_f.status === 'frozen' ? ' selected' : '') + '>冻结</option><option value="released"' + (_f.status === 'released' ? ' selected' : '') + '>发布</option><option value="obsolete"' + (_f.status === 'obsolete' ? ' selected' : '') + '>作废</option></select>' +
-          '<div class="spacer"></div><span style="font-size:13px;color:var(--text-secondary)">共 ' + total + ' 条</span>' +
-        '</div><div class="table-wrapper"><table id="parts-table"><thead><tr><th data-sort="code" class="th-sortable">件号<span class="th-sort-icon"></span></th><th data-sort="name" class="th-sortable">中文名称<span class="th-sort-icon"></span></th><th data-sort="spec" class="th-sortable">规格型号<span class="th-sort-icon"></span></th><th data-sort="version" class="th-sortable">版本<span class="th-sort-icon"></span></th><th data-sort="status" class="th-sortable">状态<span class="th-sort-icon"></span></th><th>操作</th></tr></thead><tbody>' +
+      
+      // 更新计数
+      var countEl = document.getElementById('parts-count');
+      if (countEl) countEl.textContent = '共 ' + total + ' 条';
+      
+      // 渲染表格
+      var container = document.getElementById('parts-table-area');
+      if (!container) return;
+      container.innerHTML = '<table id="parts-table"><thead><tr><th data-sort="code" class="th-sortable">零件件号<span class="th-sort-icon"></span></th><th data-sort="name" class="th-sortable">中文名称<span class="th-sort-icon"></span></th><th data-sort="spec" class="th-sortable">规格型号<span class="th-sort-icon"></span></th><th data-sort="version" class="th-sortable">版本<span class="th-sort-icon"></span></th><th data-sort="status" class="th-sortable">状态<span class="th-sort-icon"></span></th><th>操作</th></tr></thead><tbody>' +
         (pd.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--text-light);padding:40px)">暂无数据</td></tr>' :
           pd.map(function(p) {
             return '<tr onclick="Parts._viewPart(\'' + p.id + '\');" style="cursor:pointer"><td>' + p.code + '</td><td>' + p.name + '</td><td>' + _esc(p.spec||'') + '</td><td><span class="tag" style="background:#e6f7ff;color:#1890ff;font-weight:600">' + (p.version||'A') + '</span></td><td>' + UI.statusTag(p.status) + '</td><td>' + (canE ? '<button class="btn-text" onclick="event.stopPropagation();Parts._editPart(\'' + p.id + '\')">编辑</button><button class="btn-text danger" onclick="event.stopPropagation();Parts._deletePart(\'' + p.id + '\')">删除</button>' : '<span style="color:var(--text-light);font-size:12px">只读</span>') + '</td></tr>';
           }).join('')) +
-        '</tbody></table></div></div>';
-      var _psTimer;
-      document.getElementById('ps').oninput = function(e) {
-        var val = e.target.value, pos = e.target.selectionStart;
-        clearTimeout(_psTimer);
-        _psTimer = setTimeout(function() {
-          _f.keyword = val; _f.page = 1;
-          render();
-          var n = document.getElementById('ps'); if (n) { n.value = val; n.setSelectionRange(pos, pos); }
-        }, 250);
-      };
-      document.getElementById('pst').onchange = function(e) { _f.status = e.target.value; _f.page = 1; render(); };
+        '</tbody></table>';
+      
       // 排序角标 & 点击事件
       document.querySelectorAll('#parts-table th[data-sort]').forEach(function(th) {
         var f = th.getAttribute('data-sort');
@@ -64,20 +67,38 @@ var Parts = {
           } else {
             _f.sort.field = f; _f.sort.dir = 'asc';
           }
-          render();
+          renderList();
         };
       });
-      var ab = document.getElementById('btn-add-part');
-      if (ab) ab.onclick = function() { Parts._editPart(null); };
     }
-    render();
+    
+    // 初始渲染
+    renderList();
+    
+    // 事件监听
+    var _psTimer;
+    document.getElementById('ps').oninput = function(e) {
+      clearTimeout(_psTimer);
+      _psTimer = setTimeout(function() {
+        _f.keyword = document.getElementById('ps').value.trim();
+        _f.page = 1;
+        renderList();
+      }, 250);
+    };
+    document.getElementById('pst').onchange = function(e) {
+      _f.status = e.target.value;
+      _f.page = 1;
+      renderList();
+    };
+    var ab = document.getElementById('btn-add-part');
+    if (ab) ab.onclick = function() { Parts._editPart(null); };
   },
 
   // 导出零件清单
   _exportParts: function() {
     var statusLabel = function(v) { return {draft:'草稿',frozen:'冻结',released:'发布',obsolete:'作废'}[v] || v; };
     var columns = [
-      {key:'code',label:'件号'},{key:'name',label:'中文名称'},{key:'spec',label:'规格'},
+      {key:'code',label:'零件件号'},{key:'name',label:'中文名称'},{key:'spec',label:'规格'},
       {key:'version',label:'版本'},
       {key:'status',label:'状态',render:function(r){return statusLabel(r.status);}},
     ];
@@ -106,7 +127,7 @@ var Parts = {
     var ro = canE ? '' : ' readonly';
     var roExceptStatus = (isFrozen && (isAdmin || userRole === 'engineer')) ? '' : (canE ? '' : ' readonly');
     UI.modal(part ? '编辑零件' : '新增零件',
-      '<div class="form-row"><div class="form-group"><label>零件件号 <span class="required">*</span></label><input type="text" id="fp-code" value="' + (part ? part.code : '') + '" placeholder="如 PT-021"' + ro + '></div><div class="form-group"><label>零件中文名称 <span class="required">*</span></label><input type="text" id="fp-name" value="' + (part ? part.name : '') + '" placeholder="如 M12螺栓"' + ro + '></div></div>' +
+      '<div class="form-row"><div class="form-group"><label>零件件号 <span class="required">*</span></label><input type="text" id="fp-code" value="' + (part ? part.code : '') + '" placeholder="如 PT-021"' + (part ? ' readonly' : '') + '></div><div class="form-group"><label>零件中文名称 <span class="required">*</span></label><input type="text" id="fp-name" value="' + (part ? part.name : '') + '" placeholder="如 M12螺栓"' + ro + '></div></div>' +
       '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" id="fp-spec" value="' + _esc(part ? part.spec : '') + '"' + ro + '></div><div class="form-group"><label>版本</label><input type="text" id="fp-version" value="' + (part ? part.version || 'A' : 'A') + '" readonly></div></div>' +
       '<div class="form-row"><div class="form-group"><label>状态</label><select id="fp-st"' + roExceptStatus + '><option value="draft"' + (!part || part.status === 'draft' ? ' selected' : '') + '>草稿</option><option value="frozen"' + (part && part.status === 'frozen' ? ' selected' : '') + '>冻结</option><option value="released"' + (part && part.status === 'released' ? ' selected' : '') + '>发布</option><option value="obsolete"' + (part && part.status === 'obsolete' ? ' selected' : '') + '>作废</option></select></div></div>' +
       '<div id="cf-part-edit-area"></div>' +  // 自定义字段占位
@@ -316,7 +337,7 @@ var Parts = {
       }).join('') + '</div>' : '<div style="padding:16px;text-align:center;color:var(--text-light);background:#fafafa;border-radius:4px">暂无修订记录</div>';
 
       UI.modal('零件详情',
-        '<div class="form-row"><div class="form-group"><label>件号</label><input type="text" value="' + _esc(part.code) + '"' + ro + '></div><div class="form-group"><label>中文名称</label><input type="text" value="' + _esc(part.name) + '"' + ro + '></div></div>' +
+        '<div class="form-row"><div class="form-group"><label>零件件号</label><input type="text" value="' + _esc(part.code) + '"' + ro + '></div><div class="form-group"><label>中文名称</label><input type="text" value="' + _esc(part.name) + '"' + ro + '></div></div>' +
         '<div class="form-row"><div class="form-group"><label>规格型号</label><input type="text" value="' + _esc(part.spec||'') + '"' + ro + '></div><div class="form-group"><label>版本</label><input type="text" value="' + (part.version||'A') + '"' + ro + '></div></div>' +
         '<div class="form-row"><div class="form-group"><label>状态</label>' + UI.statusTag(part.status) + '</div></div>' +
           '<div id="part-cf-view-area"></div>' +
@@ -324,10 +345,34 @@ var Parts = {
         { footer: '<button class="btn-primary" onclick="UI.closeModal()">关闭</button>',
       afterRender: function() {
         if (part && part.id) {
+          // 加载关联图文档数据
           API._fetch('GET', '/parts/' + part.id + '/documents').then(function(list) {
             part._entityDocs = list;
-            var area = document.getElementById('view-part-edocs-area');
-            if (area) area.innerHTML = Parts._renderAttachmentsView(part);
+            // 加载自定义字段定义
+            _loadDocCFDefs().then(function(cfDefs) {
+              cfDefs = cfDefs || [];
+              // 如果有自定义字段定义，批量获取所有关联图文档的自定义字段值
+              if (cfDefs.length > 0 && list.length > 0) {
+                var cfValuePromises = list.map(function(ed) {
+                  var d = ed.document || {};
+                  if (!d.id) return Promise.resolve();
+                  return API.getCustomFieldValues('document', d.id).then(function(values) {
+                    var cfMap = {};
+                    (values || []).forEach(function(v) { if (v.field_key) cfMap[v.field_key] = v.value; });
+                    d.customFields = cfMap;
+                  }).catch(function() {
+                    d.customFields = {};
+                  });
+                });
+                Promise.all(cfValuePromises).then(function() {
+                  var area = document.getElementById('view-part-edocs-area');
+                  if (area) area.innerHTML = Parts._renderAttachmentsView(part, cfDefs);
+                });
+              } else {
+                var area = document.getElementById('view-part-edocs-area');
+                if (area) area.innerHTML = Parts._renderAttachmentsView(part, cfDefs);
+              }
+            });
             // 同时刷新 CF 展示区，确保显示服务器端的自定义字段
             _refreshPartCFView(part);
           });
@@ -337,17 +382,57 @@ var Parts = {
     });
   },
 
-  _renderAttachmentsView: function(part) {
+  _renderAttachmentsView: function(part, cfDefs) {
     var edocList = (part._entityDocs || []);
     var html = '<h4 style="margin:20px 0 12px">📎 关联图文档</h4>';
     if (edocList.length === 0) {
       html += '<div style="padding:12px;text-align:center;color:#999;font-size:13px">暂无关联图文档</div>';
       return html;
     }
-    html += '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#fafafa"><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">图文档编号</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">图文档名称</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">版本</th><th style="padding:6px 10px;text-align:center;font-size:12px;color:#888">状态</th><th style="padding:6px 10px;text-align:left;font-size:12px;color:#888">主附件</th></tr></thead><tbody>';
+    // 构建表头 - 自适应宽度
+    html += '<table style="width:100%;border-collapse:collapse;table-layout:auto"><thead><tr style="background:#fafafa">' +
+      '<th style="padding:6px 10px;text-align:left;font-size:12px;color:#888;font-weight:600;white-space:nowrap">图文档编号</th>' +
+      '<th style="padding:6px 10px;text-align:left;font-size:12px;color:#888;font-weight:600;white-space:nowrap">图文档名称</th>' +
+      '<th style="padding:6px 10px;text-align:center;font-size:12px;color:#888;font-weight:600;white-space:nowrap">版本</th>' +
+      '<th style="padding:6px 10px;text-align:center;font-size:12px;color:#888;font-weight:600;white-space:nowrap">状态</th>';
+    
+    // 添加自定义字段列头
+    (cfDefs || []).forEach(function(cf) {
+      html += '<th style="padding:6px 10px;text-align:left;font-size:12px;color:#888;font-weight:600;white-space:nowrap">' + _esc(cf.name) + '</th>';
+    });
+    
+    html += '<th style="padding:6px 10px;text-align:left;font-size:12px;color:#888;font-weight:600;white-space:nowrap">主附件</th></tr></thead><tbody>';
+    
     edocList.forEach(function(ed) {
       var d = ed.document || {};
-      html += '<tr style="border-bottom:1px solid #f0f0f0"><td style="padding:6px 10px;font-weight:500">' + _esc(d.code || '') + '</td><td style="padding:6px 10px">' + _esc(d.name || '') + '</td><td style="padding:6px 10px">' + _esc(d.version || '') + '</td><td style="padding:6px 10px;text-align:center">' + UI.statusTag(d.status || 'draft') + '</td><td style="padding:6px 10px">' + (d.file_name ? _esc(d.file_name) : '<span style="color:#ccc">—</span>') + '</td></tr>';
+      html += '<tr style="border-bottom:1px solid #f0f0f0">' +
+        '<td style="padding:6px 10px;font-weight:500;white-space:nowrap">' + _esc(d.code || '') + '</td>' +
+        '<td style="padding:6px 10px">' + _esc(d.name || '') + '</td>' +
+        '<td style="padding:6px 10px;text-align:center"><span class="tag" style="background:#e6f7ff;color:#1890ff">' + _esc(d.version || '') + '</span></td>' +
+        '<td style="padding:6px 10px;text-align:center">' + UI.statusTag(d.status || 'draft') + '</td>';
+      
+      // 添加自定义字段值列
+      var cfValues = d.customFields || {};
+      (cfDefs || []).forEach(function(cf) {
+        var val = cfValues[cf.field_key];
+        var displayVal = '';
+        if (val !== undefined && val !== null && val !== '') {
+          if (cf.field_type === 'multiselect' && Array.isArray(val)) {
+            displayVal = val.map(function(v) { return '<span class="tag" style="background:#e6f7ff;color:#1890ff;margin:1px;font-size:11px">' + _esc(String(v)) + '</span>'; }).join(' ');
+          } else if (cf.field_type === 'select') {
+            displayVal = '<span class="tag" style="background:#f6ffed;color:#52c41a">' + _esc(String(val)) + '</span>';
+          } else if (cf.field_type === 'number') {
+            displayVal = '<span style="font-weight:600;color:#1890ff">' + _esc(String(val)) + '</span>';
+          } else {
+            displayVal = _esc(String(val));
+          }
+        } else {
+          displayVal = '<span style="color:#ccc">—</span>';
+        }
+        html += '<td style="padding:6px 10px;font-size:13px">' + displayVal + '</td>';
+      });
+      
+      html += '<td style="padding:6px 10px">' + (d.file_name ? _esc(d.file_name) : '<span style="color:#ccc">—</span>') + '</td></tr>';
     });
     html += '</tbody></table>';
     return html;
@@ -424,27 +509,87 @@ var Parts = {
     
     window._docSelectorState = {
       filteredDocs: filteredDocs,
-      selectedDocs: []
+      selectedDocs: [],
+      cfDefs: null // 缓存自定义字段定义
     };
     
+    // 加载自定义字段定义
+    _loadDocCFDefs().then(function(cfDefs) {
+      window._docSelectorState.cfDefs = cfDefs || [];
+      // 批量获取所有可选图文档的自定义字段值
+      if (window._docSelectorState.cfDefs.length > 0 && filteredDocs.length > 0) {
+        var cfValuePromises = filteredDocs.map(function(d) {
+          return API.getCustomFieldValues('document', d.id).then(function(values) {
+            var cfMap = {};
+            (values || []).forEach(function(v) { if (v.field_key) cfMap[v.field_key] = v.value; });
+            d.customFields = cfMap;
+          }).catch(function() {
+            d.customFields = {};
+          });
+        });
+        Promise.all(cfValuePromises).then(function() {
+          _initDocSelectorUI(partId);
+        });
+      } else {
+        _initDocSelectorUI(partId);
+      }
+    });
+    
+    function _initDocSelectorUI(partId) {
     function renderSelectedDocs() {
       var container = document.getElementById('ds-selected-docs');
       if (!container) return;
       
       var selected = window._docSelectorState ? window._docSelectorState.selectedDocs : [];
+      var cfDefs = window._docSelectorState ? window._docSelectorState.cfDefs : [];
+      
       if (selected.length === 0) {
         container.innerHTML = '<p style="color:#999;font-size:12px;padding:4px 0">暂无已选图文档</p>';
         return;
       }
       
-      var h = '<table style="table-layout:fixed;width:100%;margin-bottom:4px"><thead><tr style="background:#f8f8f8"><th style="width:120px;text-align:left;padding:4px 6px;font-size:11px;color:#888">编号</th><th style="text-align:left;padding:4px 6px;font-size:11px;color:#888">名称</th><th style="width:60px;text-align:left;padding:4px 6px;font-size:11px;color:#888">版本</th><th style="width:60px;text-align:left;padding:4px 6px;font-size:11px;color:#888">状态</th><th style="width:40px"></th></tr></thead><tbody>';
+      // 构建表头 - 包含自定义字段
+      var h = '<table style="table-layout:auto;width:100%;margin-bottom:4px"><thead><tr style="background:#f8f8f8">' +
+        '<th style="text-align:left;padding:4px 6px;font-size:11px;color:#888;white-space:nowrap">编号</th>' +
+        '<th style="text-align:left;padding:4px 6px;font-size:11px;color:#888;white-space:nowrap">名称</th>' +
+        '<th style="text-align:left;padding:4px 6px;font-size:11px;color:#888;white-space:nowrap">版本</th>' +
+        '<th style="text-align:left;padding:4px 6px;font-size:11px;color:#888;white-space:nowrap">状态</th>';
+      
+      // 添加自定义字段列头
+      (cfDefs || []).forEach(function(cf) {
+        h += '<th style="text-align:left;padding:4px 6px;font-size:11px;color:#888;white-space:nowrap">' + _esc(cf.name) + '</th>';
+      });
+      
+      h += '<th style="width:40px"></th></tr></thead><tbody>';
       
       selected.forEach(function(d, idx) {
         h += '<tr style="border-bottom:1px solid #f0f0f0">';
-        h += '<td style="padding:4px 6px;font-size:12px">' + _esc(d.code || '') + '</td>';
+        h += '<td style="padding:4px 6px;font-size:12px;white-space:nowrap">' + _esc(d.code || '') + '</td>';
         h += '<td style="padding:4px 6px;font-size:12px">' + _esc(d.name || '') + '</td>';
         h += '<td style="padding:4px 6px;font-size:12px;color:#888">' + _esc(d.version || 'A') + '</td>';
         h += '<td style="padding:4px 6px;font-size:12px">' + UI.statusTag(d.status || 'draft') + '</td>';
+        
+        // 添加自定义字段值列
+        var cfValues = d.customFields || {};
+        (cfDefs || []).forEach(function(cf) {
+          var val = cfValues[cf.field_key];
+          var displayVal = '';
+          if (val !== undefined && val !== null && val !== '') {
+            if (cf.field_type === 'multiselect' && Array.isArray(val)) {
+              displayVal = val.map(function(v) { return '<span class="tag" style="background:#e6f7ff;color:#1890ff;margin:1px;font-size:10px">' + _esc(String(v)) + '</span>'; }).join(' ');
+            } else if (cf.field_type === 'select') {
+              displayVal = '<span class="tag" style="background:#f6ffed;color:#52c41a">' + _esc(String(val)) + '</span>';
+            } else if (cf.field_type === 'number') {
+              displayVal = '<span style="font-weight:600;color:#1890ff;font-size:12px">' + _esc(String(val)) + '</span>';
+            } else {
+              displayVal = _esc(String(val));
+            }
+          } else {
+            displayVal = '<span style="color:#ccc">—</span>';
+          }
+          h += '<td style="padding:4px 6px;font-size:12px">' + displayVal + '</td>';
+        });
+        
         h += '<td style="text-align:center"><button class="btn-text danger" style="font-size:12px;padding:2px 4px" onclick="Parts._removeSelectedDoc(\'' + d.id + '\')">×</button></td>';
         h += '</tr>';
       });
@@ -496,6 +641,7 @@ var Parts = {
     function renderResults(keyword) {
       var kw = (keyword || '').toLowerCase();
       var filtered = window._docSelectorState ? window._docSelectorState.filteredDocs : [];
+      var cfDefs = window._docSelectorState ? window._docSelectorState.cfDefs : [];
       
       var results = filtered.filter(function(d) {
         if (!kw) return true;
@@ -510,10 +656,49 @@ var Parts = {
         return;
       }
       
-      var html = '<table style="table-layout:fixed;width:100%"><thead><tr style="background:#f8f8f8"><th style="width:120px;text-align:left;padding:6px 10px;font-size:12px;color:#888">编号</th><th style="text-align:left;padding:6px 10px;font-size:12px;color:#888">名称</th><th style="width:70px;text-align:left;padding:6px 10px;font-size:12px;color:#888">版本</th><th style="width:70px;text-align:left;padding:6px 10px;font-size:12px;color:#888">状态</th><th style="width:70px;text-align:center;padding:6px 10px;font-size:12px;color:#888">操作</th></tr></thead><tbody>';
+      // 构建表头 - 包含自定义字段，自适应宽度
+      var html = '<table style="table-layout:auto;width:100%"><thead><tr style="background:#f8f8f8">' +
+        '<th style="text-align:left;padding:6px 10px;font-size:12px;color:#888;white-space:nowrap">编号</th>' +
+        '<th style="text-align:left;padding:6px 10px;font-size:12px;color:#888;white-space:nowrap">名称</th>' +
+        '<th style="text-align:left;padding:6px 10px;font-size:12px;color:#888;white-space:nowrap">版本</th>' +
+        '<th style="text-align:left;padding:6px 10px;font-size:12px;color:#888;white-space:nowrap">状态</th>';
+      
+      // 添加自定义字段列头
+      (cfDefs || []).forEach(function(cf) {
+        html += '<th style="text-align:left;padding:6px 10px;font-size:12px;color:#888;white-space:nowrap">' + _esc(cf.name) + '</th>';
+      });
+      
+      html += '<th style="text-align:center;padding:6px 10px;font-size:12px;color:#888;white-space:nowrap">操作</th></tr></thead><tbody>';
       
       results.forEach(function(d) {
-        html += '<tr style="border-bottom:1px solid #f5f5f5"><td style="padding:7px 10px;font-size:13px">' + _esc(d.code || '') + '</td><td style="padding:7px 10px;font-size:13px">' + _esc(d.name || '') + '</td><td style="padding:7px 10px;font-size:13px;color:#888">' + _esc(d.version || 'A') + '</td><td style="padding:7px 10px;font-size:13px">' + UI.statusTag(d.status || 'draft') + '</td><td style="text-align:center;padding:7px 10px"><button class="btn-primary btn-sm" onclick="Parts._addSelectedDoc(\'' + d.id + '\')">添加</button></td></tr>';
+        html += '<tr style="border-bottom:1px solid #f5f5f5">' +
+          '<td style="padding:7px 10px;font-size:13px;white-space:nowrap">' + _esc(d.code || '') + '</td>' +
+          '<td style="padding:7px 10px;font-size:13px">' + _esc(d.name || '') + '</td>' +
+          '<td style="padding:7px 10px;font-size:13px;color:#888">' + _esc(d.version || 'A') + '</td>' +
+          '<td style="padding:7px 10px;font-size:13px">' + UI.statusTag(d.status || 'draft') + '</td>';
+        
+        // 添加自定义字段值列
+        var cfValues = d.customFields || {};
+        (cfDefs || []).forEach(function(cf) {
+          var val = cfValues[cf.field_key];
+          var displayVal = '';
+          if (val !== undefined && val !== null && val !== '') {
+            if (cf.field_type === 'multiselect' && Array.isArray(val)) {
+              displayVal = val.map(function(v) { return '<span class="tag" style="background:#e6f7ff;color:#1890ff;margin:1px;font-size:10px">' + _esc(String(v)) + '</span>'; }).join(' ');
+            } else if (cf.field_type === 'select') {
+              displayVal = '<span class="tag" style="background:#f6ffed;color:#52c41a">' + _esc(String(val)) + '</span>';
+            } else if (cf.field_type === 'number') {
+              displayVal = '<span style="font-weight:600;color:#1890ff">' + _esc(String(val)) + '</span>';
+            } else {
+              displayVal = _esc(String(val));
+            }
+          } else {
+            displayVal = '<span style="color:#ccc">—</span>';
+          }
+          html += '<td style="padding:7px 10px;font-size:13px">' + displayVal + '</td>';
+        });
+        
+        html += '<td style="text-align:center;padding:7px 10px"><button class="btn-primary btn-sm" onclick="Parts._addSelectedDoc(\'' + d.id + '\')">添加</button></td></tr>';
       });
       
       html += '</tbody></table>';
@@ -551,6 +736,7 @@ var Parts = {
     };
     
     renderResults('');
+    } // end _initDocSelectorUI
   },
   
   _addSelectedDoc: function(docId) {

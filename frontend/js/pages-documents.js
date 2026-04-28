@@ -14,6 +14,7 @@ var Documents = {
       '</div><div class="table-wrapper" id="docs-table-area"></div></div>';
 
     var docs = Store.getAll('documents') || [];
+    var docCfDefs = null; // 缓存自定义字段定义
     renderList();
 
     function renderList(list) {
@@ -37,23 +38,83 @@ var Documents = {
         return;
       }
 
-      var html = '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#fafafa;border-bottom:2px solid #e8e8e8">' +
-        '<th style="padding:10px 12px;text-align:left;font-size:12px;color:#888;font-weight:600;width:100px">编号</th>' +
-        '<th style="padding:10px 12px;text-align:left;font-size:12px;color:#888;font-weight:600">名称</th>' +
-        '<th style="padding:10px 12px;text-align:center;font-size:12px;color:#888;font-weight:600;width:60px">版本</th>' +
-        '<th style="padding:10px 12px;text-align:center;font-size:12px;color:#888;font-weight:600;width:70px">状态</th>' +
-        '<th style="padding:10px 12px;text-align:left;font-size:12px;color:#888;font-weight:600;width:150px">主附件</th>' +
-        '<th style="padding:10px 12px;text-align:center;font-size:12px;color:#888;font-weight:600;width:100px">操作</th>' +
+      // 加载自定义字段定义并渲染表格
+      var cfDefsPromise = docCfDefs ? Promise.resolve(docCfDefs) : _loadDocCFDefs();
+      cfDefsPromise.then(function(cfDefs) {
+        docCfDefs = cfDefs || [];
+        // 如果有自定义字段定义，批量获取所有文档的自定义字段值
+        if (docCfDefs.length > 0 && filtered.length > 0) {
+          var cfValuePromises = filtered.map(function(d) {
+            return API.getCustomFieldValues('document', d.id).then(function(list) {
+              var cfMap = {};
+              (list || []).forEach(function(v) { if (v.field_key) cfMap[v.field_key] = v.value; });
+              d.customFields = cfMap;
+              return d;
+            }).catch(function() {
+              d.customFields = {};
+              return d;
+            });
+          });
+          Promise.all(cfValuePromises).then(function() {
+            _renderTableWithCF(filtered, docCfDefs);
+          });
+        } else {
+          _renderTableWithCF(filtered, docCfDefs);
+        }
+      });
+    }
+
+    function _renderTableWithCF(filtered, cfDefs) {
+      var container = document.getElementById('docs-table-area');
+      if (!container) return;
+
+      // 构建表头 - 与零件管理界面保持一致
+      var html = '<table id="documents-table"><thead><tr>' +
+        '<th data-sort="code" class="th-sortable">图文档编号<span class="th-sort-icon"></span></th>' +
+        '<th data-sort="name" class="th-sortable">图文档名称<span class="th-sort-icon"></span></th>' +
+        '<th data-sort="version" class="th-sortable">版本<span class="th-sort-icon"></span></th>' +
+        '<th data-sort="status" class="th-sortable">状态<span class="th-sort-icon"></span></th>';
+
+      // 添加自定义字段列头
+      (cfDefs || []).forEach(function(cf) {
+        html += '<th>' + _esc(cf.name) + '</th>';
+      });
+
+      html += '<th>主附件</th>' +
+        '<th>操作</th>' +
         '</tr></thead><tbody>';
 
+      // 构建表格行
       filtered.forEach(function(d) {
         html += '<tr style="border-bottom:1px solid #f0f0f0;cursor:pointer" data-id="' + d.id + '">' +
-          '<td style="padding:10px 12px;font-weight:500">' + _esc(d.code) + '</td>' +
+          '<td style="padding:10px 12px;font-weight:500;white-space:nowrap">' + _esc(d.code) + '</td>' +
           '<td style="padding:10px 12px">' + _esc(d.name) + '</td>' +
           '<td style="padding:10px 12px;text-align:center"><span class="tag" style="background:#e6f7ff;color:#1890ff">' + _esc(d.version) + '</span></td>' +
-          '<td style="padding:10px 12px;text-align:center">' + UI.statusTag(d.status || 'draft') + '</td>' +
-          '<td style="padding:10px 12px;font-size:13px;color:#666">' + (d.file_name ? _esc(d.file_name) : '<span style="color:#ccc">—</span>') + '</td>' +
-          '<td style="padding:10px 12px;text-align:center">' +
+          '<td style="padding:10px 12px;text-align:center">' + UI.statusTag(d.status || 'draft') + '</td>';
+
+        // 添加自定义字段值列
+        var cfValues = d.customFields || {};
+        (cfDefs || []).forEach(function(cf) {
+          var val = cfValues[cf.field_key];
+          var displayVal = '';
+          if (val !== undefined && val !== null && val !== '') {
+            if (cf.field_type === 'multiselect' && Array.isArray(val)) {
+              displayVal = val.map(function(v) { return '<span class="tag" style="background:#e6f7ff;color:#1890ff;margin:1px;font-size:11px">' + _esc(String(v)) + '</span>'; }).join(' ');
+            } else if (cf.field_type === 'select') {
+              displayVal = '<span class="tag" style="background:#f6ffed;color:#52c41a">' + _esc(String(val)) + '</span>';
+            } else if (cf.field_type === 'number') {
+              displayVal = '<span style="font-weight:600;color:#1890ff">' + _esc(String(val)) + '</span>';
+            } else {
+              displayVal = _esc(String(val));
+            }
+          } else {
+            displayVal = '<span style="color:#ccc">—</span>';
+          }
+          html += '<td style="padding:10px 12px;font-size:13px">' + displayVal + '</td>';
+        });
+
+        html += '<td style="padding:10px 12px;font-size:13px;color:#666">' + (d.file_name ? _esc(d.file_name) : '<span style="color:#ccc">—</span>') + '</td>' +
+          '<td style="padding:10px 12px;text-align:center;white-space:nowrap">' +
             '<button class="btn-text btn-sm btn-edit-doc" data-id="' + d.id + '">编辑</button>' +
             '<button class="btn-text btn-sm btn-delete-doc" data-id="' + d.id + '">删除</button>' +
           '</td></tr>';
@@ -83,7 +144,7 @@ var Documents = {
     var doc = docs.find(function(d) { return d.id === id; });
     if (!doc) return;
 
-    var html = '<div class="form-row"><div class="form-group"><label>编号</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa;font-weight:500">' + _esc(doc.code) + '</div></div><div class="form-group"><label>名称</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa">' + _esc(doc.name) + '</div></div></div>' +
+    var html = '<div class="form-row"><div class="form-group"><label>图文档编号</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa;font-weight:500">' + _esc(doc.code) + '</div></div><div class="form-group"><label>图文档名称</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa">' + _esc(doc.name) + '</div></div></div>' +
       '<div class="form-row"><div class="form-group"><label>版本</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa">' + _esc(doc.version) + '</div></div><div class="form-group"><label>状态</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa">' + UI.statusTag(doc.status || 'draft') + '</div></div></div>' +
       '<div class="form-row"><div class="form-group" style="flex:1"><label>描述</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa">' + (doc.description ? _esc(doc.description) : '<span style="color:#ccc">—</span>') + '</div></div><div class="form-group" style="flex:1"><label>主附件</label><div style="padding:6px 10px;border:1px solid #e8e8e8;border-radius:4px;background:#fafafa">' + (doc.file_name ? _esc(doc.file_name) : '<span style="color:#ccc">未上传</span>') + '</div></div></div>' +
       '<div id="doc-cf-view-area"></div>';
