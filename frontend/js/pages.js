@@ -3,6 +3,7 @@
  * 
  * 本文件已拆分为以下独立模块文件：
  *   pages-dashboard.js   仪表盘          → Dashboard
+ *   pages-board.js       用户看板        → Board
  *   pages-logs.js        操作日志        → Logs
  *   pages-parts.js       零件管理        → Parts
  *   pages-components.js  部件管理        → Components

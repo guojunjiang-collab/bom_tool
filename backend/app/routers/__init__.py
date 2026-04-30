@@ -8,5 +8,6 @@ from .dict import router as dict_router
 from .attachments import router as attachments_router
 from .custom_fields import router as custom_fields_router
 from .documents import router as documents_router
+from .dashboard import router as dashboard_router
 
-__all__ = ["auth_router", "users_router", "parts_router", "assemblies_router", "bom_router", "logs_router", "dict_router", "attachments_router", "custom_fields_router", "documents_router"]
+__all__ = ["auth_router", "users_router", "parts_router", "assemblies_router", "bom_router", "logs_router", "dict_router", "attachments_router", "custom_fields_router", "documents_router", "dashboard_router"]

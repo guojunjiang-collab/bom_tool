@@ -199,6 +199,18 @@ const API = {
   async updateDocument(id, data) { return this._fetch('PUT', '/documents/' + id, data); },
   async deleteDocument(id) { return this._fetch('DELETE', '/documents/' + id); },
 
+  // Dashboard (用户看板)
+  async getDashboard() { return this._fetch('GET', '/dashboard/'); },
+  async initDashboard() { return this._fetch('POST', '/dashboard/init'); },
+  async createDashboardFolder(data) { return this._fetch('POST', '/dashboard/folders', data); },
+  async updateDashboardFolder(id, data) { return this._fetch('PUT', '/dashboard/folders/' + id, data); },
+  async deleteDashboardFolder(id) { return this._fetch('DELETE', '/dashboard/folders/' + id); },
+  async addDashboardItems(data) { return this._fetch('POST', '/dashboard/items', data); },
+  async deleteDashboardItem(id) { return this._fetch('DELETE', '/dashboard/items/' + id); },
+  async getFolderShares(folderId) { return this._fetch('GET', '/dashboard/folders/' + folderId + '/shares'); },
+  async addFolderShare(folderId, data) { return this._fetch('POST', '/dashboard/folders/' + folderId + '/shares', data); },
+  async deleteFolderShare(folderId, shareId) { return this._fetch('DELETE', '/dashboard/folders/' + folderId + '/shares/' + shareId); },
+
   // Attachments v3.0
   async listAttachments() {
     return this._fetch('GET', '/attachments/');

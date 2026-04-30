@@ -347,3 +347,370 @@
     margin-bottom: 20px;
 }
 
+/* ===== 用户看板 Board ===== */
+
+.board-layout {
+    display: flex;
+    gap: 16px;
+    min-height: 500px;
+}
+
+.board-sidebar {
+    width: 260px;
+    min-width: 260px;
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 0;
+    overflow-y: auto;
+    max-height: calc(100vh - 180px);
+}
+
+.board-tree-section {
+    padding: 0;
+}
+
+.board-tree-title {
+    padding: 12px 16px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.board-tree-list {
+    padding: 0;
+}
+
+/* 文件夹节点 */
+.folder-node {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 6px;
+    margin: 2px 6px;
+    transition: background 0.15s;
+    position: relative;
+    gap: 6px;
+}
+
+.folder-node:hover {
+    background: var(--bg-hover, #f5f5f5);
+}
+
+.folder-node.selected {
+    background: #e6f7ff;
+    color: #1890ff;
+}
+
+.folder-node.shared {
+    opacity: 0.9;
+}
+
+.folder-chevron {
+    font-size: 10px;
+    width: 16px;
+    text-align: center;
+    color: var(--text-light);
+    flex-shrink: 0;
+}
+
+.folder-chevron.no-children {
+    visibility: hidden;
+}
+
+.folder-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.folder-icon {
+    font-size: 15px;
+    flex-shrink: 0;
+}
+
+.folder-name {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.folder-badge {
+    background: #f0f0f0;
+    color: #666;
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.folder-share-badge {
+    font-size: 11px;
+    color: var(--primary);
+    background: #f0f5ff;
+    padding: 1px 6px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.folder-more {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-size: 16px;
+    color: var(--text-light);
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.folder-node:hover .folder-more {
+    opacity: 1;
+}
+
+.folder-more:hover {
+    background: #e8e8e8;
+}
+
+/* 文件夹操作菜单 */
+.folder-menu {
+    position: fixed;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.15);
+    padding: 6px 0;
+    z-index: 1000;
+    min-width: 140px;
+}
+
+.folder-menu-item {
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.folder-menu-item:hover {
+    background: #f5f5f5;
+}
+
+/* 内容区 */
+.board-content {
+    flex: 1;
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(100vh - 180px);
+}
+
+.board-content-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.board-content-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.board-content-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.board-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 300px;
+}
+
+/* Tab 切换 */
+.board-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border, #e8e8e8);
+    margin-bottom: 16px;
+}
+
+.board-tab {
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+}
+
+.board-tab:hover {
+    color: var(--primary);
+}
+
+.board-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: 500;
+}
+
+/* 表格 */
+.board-table-wrapper {
+    overflow-x: auto;
+}
+
+.board-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.board-table thead th {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border, #e8e8e8);
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.board-table tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.board-table tbody tr:hover {
+    background: #fafafa;
+}
+
+/* 关联项目弹窗 */
+.board-link-filter {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+}
+
+.board-link-tab {
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 6px;
+    background: #f5f5f5;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+}
+
+.board-link-tab:hover {
+    background: #e8e8e8;
+}
+
+.board-link-tab.active {
+    background: var(--primary);
+    color: #fff;
+}
+
+.board-link-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.board-link-table thead th {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border, #e8e8e8);
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.board-link-table tbody td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.board-link-table tbody tr:hover {
+    background: #f5f5f5;
+}
+
+.board-link-table tbody tr {
+    cursor: pointer;
+}
+
+/* 共享弹窗 */
+.share-form {
+    /* share form container */
+}
+
+.share-user-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border, #e8e8e8);
+    border-radius: 6px;
+}
+
+.share-user-item {
+    padding: 8px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.share-user-item:hover {
+    background: #f5f5f5;
+}
+
+.share-user-item.selected {
+    background: #e6f7ff;
+    color: var(--primary);
+}
+
+.share-user-item.disabled {
+    color: var(--text-light);
+    cursor: not-allowed;
+}
+
+.share-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    gap: 12px;
+    font-size: 13px;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.share-item span:first-child {
+    flex: 1;
+}
+
+.share-perm {
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: #f5f5f5;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.btn-sm {
+    font-size: 12px;
+    padding: 4px 12px;
+}
+

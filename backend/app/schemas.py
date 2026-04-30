@@ -279,3 +279,67 @@ class ReorderItem(BaseSchema):
 
 class ReorderRequest(BaseSchema):
     items: List[ReorderItem]
+
+
+# ===== 用户看板 Schema =====
+
+class DashboardFolderCreate(BaseSchema):
+    """创建文件夹"""
+    id: Optional[uuid.UUID] = None
+    parent_id: Optional[uuid.UUID] = None
+    name: str = Field(..., min_length=1, max_length=128)
+
+class DashboardFolderUpdate(BaseSchema):
+    """更新文件夹"""
+    name: Optional[str] = Field(None, min_length=1, max_length=128)
+    parent_id: Optional[uuid.UUID] = None
+
+class DashboardFolderResponse(BaseSchema):
+    """文件夹响应"""
+    id: uuid.UUID
+    parent_id: Optional[uuid.UUID] = None
+    name: str
+    sort_order: int = 0
+    item_count: int = 0
+    created_at: datetime
+
+class DashboardFolderTreeResponse(BaseSchema):
+    """文件夹树节点（含子节点和关联项）"""
+    id: uuid.UUID
+    parent_id: Optional[uuid.UUID] = None
+    name: str
+    sort_order: int = 0
+    created_at: datetime
+    items: Optional[List[dict]] = None
+    children: Optional[List["DashboardFolderTreeResponse"]] = None
+
+class DashboardItemCreate(BaseSchema):
+    """创建文件夹关联项"""
+    folder_id: uuid.UUID
+    entity_type: str = Field(..., pattern=r'^(part|assembly|document)$')
+    entity_id: uuid.UUID
+
+class DashboardItemBatchCreate(BaseSchema):
+    """批量创建关联项"""
+    items: List[DashboardItemCreate]
+
+class DashboardShareCreate(BaseSchema):
+    """创建文件夹共享"""
+    shared_with_user_id: uuid.UUID
+    permission: str = Field(default="view", pattern=r'^(view|edit)$')
+
+class DashboardShareResponse(BaseSchema):
+    """共享响应"""
+    id: uuid.UUID
+    folder_id: uuid.UUID
+    shared_with_user_id: uuid.UUID
+    shared_with_user: Optional[dict] = None  # {id, username, real_name}
+    permission: str
+    created_at: datetime
+
+class DashboardResponse(BaseSchema):
+    """看板响应"""
+    id: uuid.UUID
+    name: str
+    created_at: datetime
+    updated_at: datetime
