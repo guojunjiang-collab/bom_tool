@@ -396,15 +396,11 @@ var serverTime = converted.updatedAt || 0;
                   Store.update(entity.key, existing.id, updateData, { silent: true, skipSync: true });
                 } else {
                   // 本地更新更晚或同等新 → 保留本地，但对于图文档始终更新附件字段
-                  console.log('[Pull] 保留本地', entity.key, 'id=' + existing.id, 'status=' + existing.status);
                   var updateFields = { id: converted.id };
                   // 图文档：始终从服务器更新附件信息（file_id, file_name 只在服务器端设置）
-                  console.log('[Pull DEBUG] entity.key=' + entity.key + ', isDocuments=' + (entity.key === 'documents'));
                   if (entity.key === 'documents') {
-                    console.log('[Pull] 文档附件信息: file_id=' + converted.file_id + ', file_name=' + converted.file_name);
                     if (converted.file_id) updateFields.file_id = converted.file_id;
                     if (converted.file_name) updateFields.file_name = converted.file_name;
-                    console.log('[Pull] 更新字段:', JSON.stringify(updateFields));
                   }
                   Store.update(entity.key, existing.id, updateFields, { silent: true, skipSync: true });
                 }
