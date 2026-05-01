@@ -74,34 +74,19 @@ var Preview = {
 
   loadPDF: function() {
     var self = this;
-    self.showLoading('正在加载 PDF...');
+    self.showLoading('正在加载 PDF，请稍候...');
 
+    // 获取文件并使用浏览器原生 PDF 阅读器
     fetch('/api/v2/attachments/' + self.attId + '/stream', {
       headers: self.getHeaders(),
     }).then(function(response) {
       if (!response.ok) throw new Error('文件加载失败 (' + response.status + ')');
-      return response.arrayBuffer();
-    }).then(function(buffer) {
+      return response.blob();
+    }).then(function(blob) {
       self.hideLoading();
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
-      return pdfjsLib.getDocument({ data: buffer }).promise;
-    }).then(function(pdf) {
-      self.pdfDoc = pdf;
-      self.pdfTotal = pdf.numPages;
-      self.pdfScale = 1.5;
-      self.renderedPages = [];
-      self.showToolbar('PDF 预览', '<span style="font-size:13px;color:#aaa">' + pdf.numPages + ' 页</span>');
-
-      document.getElementById('pdf-viewer').style.display = 'flex';
-      document.getElementById('pdf-zoombar').style.display = 'flex';
-      document.getElementById('pdf-page-indicator').style.display = 'block';
-      document.getElementById('zoom-level').textContent = Math.round(self.pdfScale / 1.5 * 100) + '%';
-
-      // 加载目录
-      self.loadOutline();
-
-      // 连续滚动渲染所有页面
-      self.renderAllPages();
+      // 创建 blob URL 并直接显示（浏览器会用原生 PDF 阅读器）
+      var url = URL.createObjectURL(blob);
+      window.location.replace(url);
     }).catch(function(e) {
       self.showError(e.message);
     });

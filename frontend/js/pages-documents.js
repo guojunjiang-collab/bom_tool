@@ -525,13 +525,10 @@ var Documents = {
       return;
     }
     
-    // 下载附件（流式）
-    UI.toast('正在下载...', 'info');
-    downloadFile(doc.file_id, doc.file_name).then(function() {
-      UI.toast('下载完成', 'success');
-    }).catch(function(e) {
-      UI.toast('下载失败: ' + e.message, 'error');
-    });
+    // 使用浏览器原生下载（显示进度）
+    var token = localStorage.getItem('bom_api_token') || '';
+    var downloadUrl = '/api/v2/attachments/' + doc.file_id + '/direct-download?token=' + encodeURIComponent(token);
+    window.open(downloadUrl, '_blank');
   },
 
   _deleteDoc: function(id) {
@@ -586,28 +583,10 @@ var Documents = {
       return;
     }
 
-    if (ext === 'pdf') {
-      // PDF 直接用浏览器原生阅读器
-      var token = localStorage.getItem('bom_api_token') || '';
-      UI.toast('正在加载文件，请稍候...', 'info');
-      fetch('/api/v2/attachments/' + fileId + '/stream', {
-        headers: { 'Authorization': 'Bearer ' + token }
-      }).then(function(response) {
-        if (!response.ok) throw new Error('加载失败 (' + response.status + ')');
-        return response.blob();
-      }).then(function(blob) {
-        UI.toast('文件加载完成', 'success');
-        var url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-      }).catch(function(e) {
-        UI.toast('预览失败: ' + e.message, 'error');
-      });
-    } else {
-      // STP 使用自定义预览页面
-      var token = localStorage.getItem('bom_api_token') || '';
-      var previewUrl = window.location.origin + '/preview.html?att_id=' + fileId + '&token=' + encodeURIComponent(token) + '&type=' + ext;
-      window.open(previewUrl, '_blank');
-    }
+    // 统一用 preview.html 在新标签页加载，不阻塞主界面
+    var token = localStorage.getItem('bom_api_token') || '';
+    var previewUrl = window.location.origin + '/preview.html?att_id=' + fileId + '&token=' + encodeURIComponent(token) + '&type=' + ext;
+    window.open(previewUrl, '_blank');
   }
 };
 

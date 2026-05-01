@@ -459,6 +459,57 @@ async def stream_attachment(
     )
 
 
+@router.get("/{attachment_id}/direct-download")
+async def direct_download_attachment(
+    attachment_id: uuid.UUID,
+    token: str = None,
+    db: Session = Depends(get_db)
+):
+    """
+    直接下载附件（支持 query token，用于浏览器原生下载）
+    浏览器直接访问此 URL 会触发下载并显示进度
+    """
+    from jose import JWTError, jwt
+    from .auth import SECRET_KEY, ALGORITHM
+    
+    # 验证 token
+    if not token:
+        raise HTTPException(status_code=401, detail="缺少认证令牌")
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        if not username:
+            raise HTTPException(status_code=401, detail="无效的认证令牌")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="认证令牌验证失败")
+    
+    # 获取附件
+    att = db.query(DocumentAttachment).filter(DocumentAttachment.id == attachment_id).first()
+    if not att:
+        raise HTTPException(status_code=404, detail="附件不存在")
+
+    file_path = None
+    if hasattr(att, 'file_path') and att.file_path:
+        full_path = file_storage.base_dir / att.file_path
+        if full_path.exists():
+            file_path = full_path
+
+    if not file_path:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    import mimetypes
+    mime_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
+
+    # 返回文件，带 Content-Disposition: attachment 触发下载
+    return FileResponse(
+        path=str(file_path),
+        filename=att.file_name,
+        media_type=mime_type,
+        headers={"Content-Disposition": f'attachment; filename="{att.file_name}"'}
+    )
+
+
 @router.get("/{attachment_id}/gltf")
 async def get_gltf(
     attachment_id: uuid.UUID,
