@@ -461,7 +461,11 @@ var Parts = {
                     area.querySelectorAll('.edoc-row').forEach(function(row) {
                       row.onclick = function() {
                         var docId = row.getAttribute('data-doc-id');
-                        if (docId) Documents._viewDoc(docId);
+                        if (docId) {
+                          // 存储返回信息
+                          window._docDetailReturnTo = { type: 'part', id: part.id };
+                          Documents._viewDoc(docId);
+                        }
                       };
                     });
                   }
@@ -501,7 +505,11 @@ var Parts = {
                   area.querySelectorAll('.edoc-row').forEach(function(row) {
                     row.onclick = function() {
                       var docId = row.getAttribute('data-doc-id');
-                      if (docId) Documents._viewDoc(docId);
+                      if (docId) {
+                        // 存储返回信息
+                        window._docDetailReturnTo = { type: 'part', id: part.id };
+                        Documents._viewDoc(docId);
+                      }
                     };
                   });
                 }

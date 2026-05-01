@@ -270,6 +270,30 @@ var Documents = {
     UI.modal('图文档详情', html, {
       footer: (doc && doc.file_id ? '<button class="btn-primary" onclick="Documents._previewDoc(\'' + doc.file_id + '\', \'' + _esc(doc.file_name || '') + '\')">预览</button>' : '') + '<button class="btn-outline" onclick="UI.closeModal()">关闭</button>',
       afterRender: function() {
+        // 添加返回按钮（如果是从零件/部件详情进入）
+        if (window._docDetailReturnTo) {
+          var footer = document.querySelector('#modal-box .modal-footer');
+          if (footer) {
+            var backBtn = document.createElement('button');
+            backBtn.className = 'btn-outline';
+            backBtn.innerHTML = '← 返回' + (window._docDetailReturnTo.type === 'part' ? '零件' : '部件') + '详情';
+            backBtn.style.marginRight = 'auto';
+            backBtn.onclick = function() {
+              var returnTo = window._docDetailReturnTo;
+              window._docDetailReturnTo = null;
+              UI.closeModal();
+              setTimeout(function() {
+                if (returnTo.type === 'part') {
+                  Parts._viewPart(returnTo.id);
+                } else {
+                  Components._viewComp(returnTo.id);
+                }
+              }, 100);
+            };
+            footer.insertBefore(backBtn, footer.firstChild);
+          }
+        }
+        
         _loadDocCFDefs().then(function(cfDefs) {
           // 从服务器获取该文档的自定义字段值，避免本地缓存为空
           if (doc && doc.id) {
