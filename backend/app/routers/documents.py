@@ -33,8 +33,10 @@ async def get_document_references(doc_id: uuid.UUID, db: Session = Depends(get_d
     获取图文档的引用信息
     
     Returns:
-        引用该图文档的零部件列表
+        引用该图文档的零部件列表、用户看板文件夹列表
     """
+    from ..models import DashboardItem, DashboardFolder, User
+    
     # 查询引用该图文档的零部件关联记录
     refs = db.query(EntityDocument).filter(EntityDocument.document_id == doc_id).all()
     
@@ -62,10 +64,43 @@ async def get_document_references(doc_id: uuid.UUID, db: Session = Depends(get_d
                     "category": ref.category,
                 })
     
+    # 查询用户看板中引用该图文档的记录
+    dashboard_refs = db.query(DashboardItem).filter(
+        DashboardItem.entity_type == 'document',
+        DashboardItem.entity_id == doc_id
+    ).all()
+    
+    dashboard_folders = []
+    for item in dashboard_refs:
+        folder = db.query(DashboardFolder).filter(DashboardFolder.id == item.folder_id).first()
+        if folder:
+            # 获取文件夹完整路径
+            path_parts = []
+            current_folder = folder
+            while current_folder:
+                path_parts.insert(0, current_folder.name)
+                if current_folder.parent_id:
+                    current_folder = db.query(DashboardFolder).filter(DashboardFolder.id == current_folder.parent_id).first()
+                else:
+                    current_folder = None
+            
+            # 获取用户信息
+            user = db.query(User).filter(User.id == folder.user_id).first()
+            
+            dashboard_folders.append({
+                "folder_id": str(folder.id),
+                "folder_name": folder.name,
+                "folder_path": " / ".join(path_parts),
+                "user_id": str(folder.user_id),
+                "user_name": user.real_name if user else "未知用户",
+            })
+    
     return {
         "document_id": str(doc_id),
         "reference_count": len(references),
         "references": references,
+        "dashboard_folder_count": len(dashboard_folders),
+        "dashboard_folders": dashboard_folders,
     }
 
 @router.post("/")
