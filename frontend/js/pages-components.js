@@ -15,8 +15,9 @@ var Components = {
       '</div></div>' +
       '<div class="card"><div class="toolbar"><div class="search-box"><input type="text" id="cs" placeholder="搜索件号/名称..." style="width:100%"></div>' +
         '<select id="cst"><option value="">全部状态</option><option value="draft">草稿</option><option value="frozen">冻结</option><option value="released">发布</option><option value="obsolete">作废</option></select>' +
+        '<button class="btn-outline" id="btn-toggle-comp-filter" style="margin-left:4px;font-size:12px;padding:6px 12px">🔽 筛选</button>' +
         '<div class="spacer"></div><span style="font-size:13px;color:var(--text-secondary)" id="components-count">共 0 条</span></div>' +
-      '<div class="table-wrapper" id="components-table-area"></div></div>';
+      '<div id="comp-filter-panel" style="display:none;padding:12px 16px;border-bottom:1px solid #f0f0f0;background:#fafafa"></div><div class="table-wrapper" id="components-table-area"></div></div>';
 
     // 渲染表格（不重新创建搜索框）
     function renderList() {
@@ -25,6 +26,29 @@ var Components = {
       if (_kw) { var k = _kw.toLowerCase(); data = data.filter(function(c2) { return c2.code.toLowerCase().indexOf(k) >= 0 || c2.name.toLowerCase().indexOf(k) >= 0; }); }
 
       if (_f.status) { data = data.filter(function(c2) { return c2.status === _f.status; }); }
+
+      // 自定义字段筛选
+      var compCfDefs = Store.getAll('custom_field_defs');
+      compCfDefs.forEach(function(cf) {
+        if (cf.applies_to !== 'component' && cf.applies_to !== 'both') return;
+        var el = document.getElementById('comp-cf-filter-' + cf.field_key);
+        if (!el || !el.value) return;
+        var fv = el.value.toLowerCase();
+        data = data.filter(function(c2) {
+          var dv = c2.customFields ? c2.customFields[cf.field_key] : null;
+          if (dv === undefined || dv === null || dv === '') return false;
+          if (cf.field_type === 'multiselect' && Array.isArray(dv)) {
+            return dv.some(function(v) { return v.toLowerCase().indexOf(fv) >= 0; });
+          }
+          return String(dv).toLowerCase().indexOf(fv) >= 0;
+        });
+      });
+      // 版本筛选
+      var verF2 = document.getElementById('comp-filter-version');
+      if (verF2 && verF2.value) {
+        var verKw2 = verF2.value.toLowerCase();
+        data = data.filter(function(c2) { return (c2.version||'').toLowerCase().indexOf(verKw2) >= 0; });
+      }
 
       if (_f.sort.field) {
         data.sort(function(a, b) {
@@ -88,6 +112,44 @@ var Components = {
 
     var ab = document.getElementById('btn-add-cp');
     if (ab) ab.onclick = function() { Components._editComp(null); };
+
+    // 筛选面板
+    var filterOpen = false;
+    document.getElementById('btn-toggle-comp-filter').onclick = function() {
+      filterOpen = !filterOpen;
+      var panel = document.getElementById('comp-filter-panel');
+      var btn = document.getElementById('btn-toggle-comp-filter');
+      if (filterOpen) {
+        btn.textContent = '🔼 收起筛选';
+        _buildCompFilterPanel();
+        panel.style.display = 'block';
+      } else {
+        btn.textContent = '🔽 筛选';
+        panel.style.display = 'none';
+      }
+    };
+
+    function _buildCompFilterPanel() {
+      var panel = document.getElementById('comp-filter-panel');
+      var cfDefs = Store.getAll('custom_field_defs');
+      var html = '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">';
+      html += '<div style="min-width:180px"><label style="font-size:13px;color:#888;margin-bottom:4px;display:block">版本</label><input type="text" id="comp-filter-version" class="form-input" placeholder="全部"></div>';
+      cfDefs.forEach(function(cf) {
+        if (cf.applies_to !== 'component' && cf.applies_to !== 'both') return;
+        html += '<div style="min-width:180px"><label style="font-size:13px;color:#888;margin-bottom:4px;display:block">' + _esc(cf.name) + '</label><input type="text" id="comp-cf-filter-' + cf.field_key + '" class="form-input" placeholder="全部"></div>';
+      });
+      html += '<div style="display:flex;gap:8px;align-self:flex-end"><button class="btn-primary" id="btn-apply-comp-filter">筛选</button><button class="btn-outline" id="btn-clear-comp-filter">清除</button></div></div>';
+      panel.innerHTML = html;
+      document.getElementById('btn-apply-comp-filter').onclick = function() { renderList(); };
+      document.getElementById('btn-clear-comp-filter').onclick = function() {
+        panel.querySelectorAll('input[type="text"]').forEach(function(el) { el.value = ''; });
+        document.getElementById('cst').value = '';
+        document.getElementById('cs').value = '';
+        _kw = '';
+        _f.status = '';
+        renderList();
+      };
+    }
   },
 
   /* ===== 部件BOM导出 ===== */

@@ -2,14 +2,21 @@
 附件管理路由 - 支持文件系统存储和分块上传
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 import uuid
 import os
+import logging
+import asyncio
+from pathlib import Path
 
 from ..database import get_db
 from ..models import User, DocumentAttachment, Document
 from ..file_storage import file_storage, chunked_uploader, MAX_FILE_SIZE, CHUNK_SIZE
 from .auth import require_role
+from ..stp_converter import is_stp_file, convert_stp_to_gltf
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/attachments", tags=["附件管理"])
 
@@ -124,6 +131,13 @@ async def upload_file(
         
         db.commit()
         db.refresh(new_att)
+        
+        # 异步转换 STP → glTF（不阻塞上传响应）
+        if is_stp_file(result["filename"]):
+            full_path = file_storage.base_dir / result["file_path"]
+            asyncio.get_event_loop().run_in_executor(
+                None, convert_stp_to_gltf, str(full_path)
+            )
         
         return {
             "id": new_att.id,
@@ -287,6 +301,13 @@ async def complete_chunked_upload(
         db.commit()
         db.refresh(new_att)
         
+        # 异步转换 STP → glTF
+        if is_stp_file(file_info["filename"]):
+            full_path = file_storage.base_dir / file_info["file_path"]
+            asyncio.get_event_loop().run_in_executor(
+                None, convert_stp_to_gltf, str(full_path)
+            )
+        
         return {
             "id": new_att.id,
             "file_name": file_info["filename"],
@@ -406,6 +427,73 @@ async def download_attachment(
         "file_data": base64.b64encode(att.file_data).decode('utf-8') if att.file_data else None,  # 编码为 Base64 字符串
         "file_size": att.file_size,
     }
+
+
+@router.get("/{attachment_id}/stream")
+async def stream_attachment(
+    attachment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["admin", "engineer", "production", "guest"]))
+):
+    """流式下载附件（直接返回二进制文件，比 base64 更快）"""
+    att = db.query(DocumentAttachment).filter(DocumentAttachment.id == attachment_id).first()
+    if not att:
+        raise HTTPException(status_code=404, detail="附件不存在")
+
+    file_path = None
+    if hasattr(att, 'file_path') and att.file_path:
+        full_path = file_storage.base_dir / att.file_path
+        if full_path.exists():
+            file_path = full_path
+
+    if not file_path:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    import mimetypes
+    mime_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
+
+    return FileResponse(
+        path=str(file_path),
+        filename=att.file_name,
+        media_type=mime_type,
+    )
+
+
+@router.get("/{attachment_id}/gltf")
+async def get_gltf(
+    attachment_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["admin", "engineer", "production", "guest"]))
+):
+    """获取 STP 对应的 glTF/glb 文件（用于前端三维预览）"""
+    att = db.query(DocumentAttachment).filter(DocumentAttachment.id == attachment_id).first()
+    if not att:
+        raise HTTPException(status_code=404, detail="附件不存在")
+
+    if not is_stp_file(att.file_name):
+        raise HTTPException(status_code=400, detail="该附件不是 STP 文件")
+
+    if not att.file_path:
+        raise HTTPException(status_code=404, detail="附件文件路径为空")
+
+    stp_full_path = file_storage.base_dir / att.file_path
+
+    # 尝试获取已转换的 glb 文件
+    from ..stp_converter import get_gltf_path
+    glb_path = get_gltf_path(str(stp_full_path))
+
+    if not glb_path:
+        # 触发转换
+        glb_path = convert_stp_to_gltf(str(stp_full_path))
+
+    if not glb_path:
+        raise HTTPException(status_code=500, detail="STP 文件转换失败，请稍后重试")
+
+    return FileResponse(
+        path=glb_path,
+        filename=Path(att.file_name).stem + ".glb",
+        media_type="model/gltf-binary",
+    )
 
 
 @router.delete("/{attachment_id}")

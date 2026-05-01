@@ -4,17 +4,21 @@ var Documents = {
     c.innerHTML = '<div class="page-header"><h2>📄 图文档管理</h2><div class="actions"><button class="btn-primary" id="btn-create-doc">+ 新建图文文档</button></div></div>' +
       '<div class="card"><div class="toolbar">' +
         '<div class="search-box" style="flex:1"><input type="text" id="doc-search" class="form-input" placeholder="搜索编号或名称..." style="width:100%"></div>' +
-        '<select id="doc-status-filter" class="form-select" style="width:160px">' +
+        '<select id="doc-status-filter" class="form-select" style="width:140px">' +
           '<option value="">全部状态</option>' +
           '<option value="draft">草稿</option>' +
           '<option value="frozen">冻结</option>' +
           '<option value="released">发布</option>' +
           '<option value="obsolete">作废</option>' +
         '</select>' +
-      '</div><div class="table-wrapper" id="docs-table-area"></div></div>';
+        '<button class="btn-outline" id="btn-toggle-filter" style="margin-left:4px;font-size:12px;padding:6px 12px">🔽 筛选</button>' +
+      '</div>' +
+      '<div id="doc-filter-panel" style="display:none;padding:12px 16px;border-bottom:1px solid #f0f0f0;background:#fafafa;display:none"></div>' +
+      '<div class="table-wrapper" id="docs-table-area"></div></div>';
 
     var docs = Store.getAll('documents') || [];
     var docCfDefs = null; // 缓存自定义字段定义
+    var _sort = { field: null, dir: 'asc' }; // 排序状态
     renderList();
 
     function renderList(list) {
@@ -30,11 +34,47 @@ var Documents = {
           var name = (d.name || '').toLowerCase();
           if (code.indexOf(kw) === -1 && name.indexOf(kw) === -1) return false;
         }
+        // 版本筛选
+        var verF = document.getElementById('doc-filter-version');
+        if (verF && verF.value) {
+          var verKw = verF.value.toLowerCase();
+          if ((d.version || '').toLowerCase().indexOf(verKw) < 0) return false;
+        }
+        // 自定义字段筛选
+        if (docCfDefs) {
+          for (var ci = 0; ci < docCfDefs.length; ci++) {
+            var cf = docCfDefs[ci];
+            var el = document.getElementById('doc-cf-filter-' + cf.field_key);
+            if (!el) continue;
+            var fv = el.value;
+            if (!fv) continue;
+            fv = fv.toLowerCase();
+            var dv = d.customFields ? d.customFields[cf.field_key] : null;
+            if (dv === undefined || dv === null || dv === '') return false;
+            // 多选字段：任一匹配
+            if (cf.field_type === 'multiselect' && Array.isArray(dv)) {
+              if (!dv.some(function(v) { return v.toLowerCase().indexOf(fv) >= 0; })) return false;
+            } else {
+              if (String(dv).toLowerCase().indexOf(fv) < 0) return false;
+            }
+          }
+        }
         return true;
       });
 
+      // 排序
+      if (_sort.field) {
+        filtered.sort(function(a, b) {
+          var av = (a[_sort.field] || '').toString().toLowerCase();
+          var bv = (b[_sort.field] || '').toString().toLowerCase();
+          if (av < bv) return _sort.dir === 'asc' ? -1 : 1;
+          if (av > bv) return _sort.dir === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+
       if (filtered.length === 0) {
-        container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-light)">暂无图文档</div>';
+        container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-light)">暂无匹配的图文档</div>';
         return;
       }
 
@@ -115,6 +155,7 @@ var Documents = {
 
         html += '<td style="padding:10px 12px;font-size:13px;color:#666">' + (d.file_name ? _esc(d.file_name) : '<span style="color:#ccc">—</span>') + '</td>' +
           '<td style="padding:10px 12px;text-align:right;white-space:nowrap">' +
+            (d.file_id ? '<button class="btn-text btn-sm btn-preview-doc" data-file-id="' + d.file_id + '" data-file-name="' + _esc(d.file_name || '') + '">预览</button>' : '') +
             '<button class="btn-text btn-sm btn-download-doc" data-id="' + d.id + '">下载</button>' +
             '<button class="btn-text btn-sm btn-edit-doc" data-id="' + d.id + '">编辑</button>' +
             '<button class="btn-text btn-sm btn-delete-doc" data-id="' + d.id + '" style="color:#ff4d4f">删除</button>' +
@@ -124,10 +165,34 @@ var Documents = {
       html += '</tbody></table>';
       container.innerHTML = html;
 
+      // 排序角标 & 点击事件
+      document.querySelectorAll('#documents-table th[data-sort]').forEach(function(th) {
+        var f = th.getAttribute('data-sort');
+        var ic = th.querySelector('.th-sort-icon');
+        th.classList.remove('sorted');
+        ic.className = 'th-sort-icon';
+        if (_sort.field === f) {
+          th.classList.add('sorted');
+          ic.classList.add(_sort.dir);
+        }
+        th.onclick = function() {
+          if (_sort.field === f) {
+            _sort.dir = _sort.dir === 'asc' ? 'desc' : 'asc';
+          } else {
+            _sort.field = f;
+            _sort.dir = 'asc';
+          }
+          renderList();
+        };
+      });
+
       container.querySelectorAll('tr[data-id]').forEach(function(tr) {
         tr.onclick = function() { Documents._viewDoc(tr.dataset.id, docs); };
       });
 
+      container.querySelectorAll('.btn-preview-doc').forEach(function(btn) {
+        btn.onclick = function(e) { e.stopPropagation(); Documents._previewDoc(btn.dataset.fileId, btn.dataset.fileName); };
+      });
       container.querySelectorAll('.btn-download-doc').forEach(function(btn) {
         btn.onclick = function(e) { e.stopPropagation(); Documents._downloadDoc(btn.dataset.id); };
       });
@@ -142,6 +207,51 @@ var Documents = {
     document.getElementById('btn-create-doc').onclick = function() { Documents._editDoc(null); };
     document.getElementById('doc-search').oninput = function() { renderList(); };
     document.getElementById('doc-status-filter').onchange = function() { renderList(); };
+
+    // 筛选面板
+    var filterOpen = false;
+    document.getElementById('btn-toggle-filter').onclick = function() {
+      filterOpen = !filterOpen;
+      var panel = document.getElementById('doc-filter-panel');
+      var btn = document.getElementById('btn-toggle-filter');
+      if (filterOpen) {
+        btn.textContent = '🔼 收起筛选';
+        _buildFilterPanel();
+        panel.style.display = 'block';
+      } else {
+        btn.textContent = '🔽 筛选';
+        panel.style.display = 'none';
+      }
+    };
+
+    function _buildFilterPanel() {
+      var panel = document.getElementById('doc-filter-panel');
+      var promise = docCfDefs ? Promise.resolve(docCfDefs) : _loadDocCFDefs();
+      promise.then(function(cfDefs) {
+        docCfDefs = cfDefs || [];
+        var html = '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">';
+        // 原有字段：版本
+        html += '<div style="min-width:180px"><label style="font-size:13px;color:#888;margin-bottom:4px;display:block">版本</label><input type="text" id="doc-filter-version" class="form-input" placeholder="全部"></div>';
+        // 自定义字段
+        (docCfDefs || []).forEach(function(cf) {
+          var label = cf.name;
+          html += '<div style="min-width:180px"><label style="font-size:13px;color:#888;margin-bottom:4px;display:block">' + _esc(label) + '</label><input type="text" id="doc-cf-filter-' + cf.field_key + '" class="form-input" placeholder="全部"></div>';
+        });
+        html += '<div style="display:flex;gap:8px;align-self:flex-end"><button class="btn-primary" id="btn-apply-filter">筛选</button>';
+        html += '<button class="btn-outline" id="btn-clear-filter">清除</button></div>';
+        html += '</div>';
+        panel.innerHTML = html;
+
+        // 绑定事件
+        document.getElementById('btn-apply-filter').onclick = function() { renderList(); };
+        document.getElementById('btn-clear-filter').onclick = function() {
+          panel.querySelectorAll('input[type="text"]').forEach(function(el) { el.value = ''; });
+          document.getElementById('doc-status-filter').value = '';
+          document.getElementById('doc-search').value = '';
+          renderList();
+        };
+      });
+    }
   },
 
   _viewDoc: function(id, docs) {
@@ -154,7 +264,7 @@ var Documents = {
       '<div id="doc-cf-view-area"></div>';
 
     UI.modal('图文档详情', html, {
-      footer: '<button class="btn-outline" onclick="UI.closeModal()">关闭</button>',
+      footer: (doc && doc.file_id ? '<button class="btn-primary" onclick="Documents._previewDoc(\'' + doc.file_id + '\', \'' + _esc(doc.file_name || '') + '\')">预览</button>' : '') + '<button class="btn-outline" onclick="UI.closeModal()">关闭</button>',
       afterRender: function() {
         _loadDocCFDefs().then(function(cfDefs) {
           // 从服务器获取该文档的自定义字段值，避免本地缓存为空
@@ -324,19 +434,8 @@ var Documents = {
 
     var dlBtn = document.getElementById('btn-download-doc-att');
     if (dlBtn) dlBtn.onclick = function() {
-      // 使用新的下载 API
-      downloadFile(doc.file_id).then(function(blob) {
-        // 创建下载链接
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = url;
-        a.download = doc.file_name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }).catch(function(e) { 
-        UI.toast('下载失败: ' + e.message, 'error'); 
+      downloadFile(doc.file_id, doc.file_name).catch(function(e) {
+        UI.toast('下载失败: ' + e.message, 'error');
       });
     };
 
@@ -426,18 +525,9 @@ var Documents = {
       return;
     }
     
-    // 下载附件
+    // 下载附件（流式）
     UI.toast('正在下载...', 'info');
-    downloadFile(doc.file_id).then(function(blob) {
-      // 创建下载链接
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = doc.file_name || 'attachment';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    downloadFile(doc.file_id, doc.file_name).then(function() {
       UI.toast('下载完成', 'success');
     }).catch(function(e) {
       UI.toast('下载失败: ' + e.message, 'error');
@@ -483,6 +573,39 @@ var Documents = {
         }
       });
     });
+  },
+
+  _previewDoc: function(fileId, fileName) {
+    if (!fileId) {
+      UI.toast('该图文档没有附件', 'warning');
+      return;
+    }
+    var ext = (fileName || '').split('.').pop().toLowerCase();
+    if (ext !== 'stp' && ext !== 'step' && ext !== 'pdf') {
+      UI.toast('该文件格式暂不支持在线预览', 'warning');
+      return;
+    }
+
+    if (ext === 'pdf') {
+      // PDF 直接用浏览器原生阅读器
+      var token = localStorage.getItem('bom_api_token') || '';
+      fetch('/api/v2/attachments/' + fileId + '/stream', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).then(function(response) {
+        if (!response.ok) throw new Error('加载失败');
+        return response.blob();
+      }).then(function(blob) {
+        var url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+      }).catch(function(e) {
+        UI.toast('预览失败: ' + e.message, 'error');
+      });
+    } else {
+      // STP 使用自定义预览页面
+      var token = localStorage.getItem('bom_api_token') || '';
+      var previewUrl = window.location.origin + '/preview.html?att_id=' + fileId + '&token=' + encodeURIComponent(token) + '&type=' + ext;
+      window.open(previewUrl, '_blank');
+    }
   }
 };
 

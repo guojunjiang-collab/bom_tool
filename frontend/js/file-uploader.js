@@ -237,37 +237,50 @@ async function uploadFile(file, entityType, entityId, options = {}) {
 }
 
 /**
- * 下载文件
+ * 下载文件（流式下载，比 base64 更快）
  * @param {string} attachmentId - 附件ID
- * @returns {Promise<Blob>} 文件Blob
+ * @param {string} filename - 文件名（用于保存时的默认文件名）
+ * @returns {Promise<void>}
  */
-async function downloadFile(attachmentId) {
-  const response = await fetch(`${API_BASE}/attachments/${attachmentId}/download`, {
+async function downloadFile(attachmentId, filename) {
+  const response = await fetch(`${API_BASE}/attachments/${attachmentId}/stream`, {
     headers: _getAuthHeaders(),
   });
-  
+
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json().catch(() => ({ detail: '下载失败' }));
     throw new Error(error.detail || '下载失败');
   }
 
-  const data = await response.json();
-  
-  // 将 base64 转换为 Blob
-  if (data.file_data) {
-    const byteCharacters = atob(data.file_data);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    return new Blob([byteArray], { type: 'application/octet-stream' });
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || 'attachment';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * 获取文件流式 URL（用于预览等场景）
+ * @param {string} attachmentId - 附件ID
+ * @returns {string} blob URL
+ */
+async function getFileBlobUrl(attachmentId) {
+  const response = await fetch(`${API_BASE}/attachments/${attachmentId}/stream`, {
+    headers: _getAuthHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error('文件加载失败');
   }
-  
-  return data;
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
 }
 
 // 导出
 window.FileUploader = FileUploader;
 window.uploadFile = uploadFile;
 window.downloadFile = downloadFile;
+window.getFileBlobUrl = getFileBlobUrl;
