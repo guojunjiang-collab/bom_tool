@@ -589,12 +589,14 @@ var Documents = {
     if (ext === 'pdf') {
       // PDF 直接用浏览器原生阅读器
       var token = localStorage.getItem('bom_api_token') || '';
+      UI.toast('正在加载文件，请稍候...', 'info');
       fetch('/api/v2/attachments/' + fileId + '/stream', {
         headers: { 'Authorization': 'Bearer ' + token }
       }).then(function(response) {
-        if (!response.ok) throw new Error('加载失败');
+        if (!response.ok) throw new Error('加载失败 (' + response.status + ')');
         return response.blob();
       }).then(function(blob) {
+        UI.toast('文件加载完成', 'success');
         var url = URL.createObjectURL(blob);
         window.open(url, '_blank');
       }).catch(function(e) {

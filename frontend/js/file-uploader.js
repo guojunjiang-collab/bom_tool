@@ -243,24 +243,32 @@ async function uploadFile(file, entityType, entityId, options = {}) {
  * @returns {Promise<void>}
  */
 async function downloadFile(attachmentId, filename) {
-  const response = await fetch(`${API_BASE}/attachments/${attachmentId}/stream`, {
-    headers: _getAuthHeaders(),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 300000); // 5分钟超时
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: '下载失败' }));
-    throw new Error(error.detail || '下载失败');
+  try {
+    const response = await fetch(`${API_BASE}/attachments/${attachmentId}/stream`, {
+      headers: _getAuthHeaders(),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: '下载失败' }));
+      throw new Error(error.detail || '下载失败');
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'attachment';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename || 'attachment';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 /**
