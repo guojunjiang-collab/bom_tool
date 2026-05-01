@@ -400,8 +400,10 @@ var serverTime = converted.updatedAt || 0;
                   var updateFields = { id: converted.id };
                   // 图文档：始终从服务器更新附件信息（file_id, file_name 只在服务器端设置）
                   if (entity.key === 'documents') {
+                    console.log('[Pull] 文档附件信息: file_id=' + converted.file_id + ', file_name=' + converted.file_name);
                     if (converted.file_id) updateFields.file_id = converted.file_id;
                     if (converted.file_name) updateFields.file_name = converted.file_name;
+                    console.log('[Pull] 更新字段:', JSON.stringify(updateFields));
                   }
                   Store.update(entity.key, existing.id, updateFields, { silent: true, skipSync: true });
                 }
