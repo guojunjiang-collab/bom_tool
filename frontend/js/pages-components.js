@@ -619,13 +619,14 @@ var Components = {
     } else {
       Components._viewComp(refId);
     }
-    // 在模态框 footer 中添加"返回"按钮，与"关闭"并排
+    // 在模态框 footer 中添加"返回"按钮（放在最左侧）
     setTimeout(function() {
       var footer = document.querySelector('#modal-box .modal-footer');
       if (!footer) return;
       var btn = document.createElement('button');
       btn.className = 'btn-outline';
       btn.innerHTML = '← 返回部件详情';
+      btn.style.marginRight = 'auto';
       btn.onclick = function() {
         var pid = window._compDetailReturnTo;
         window._compDetailReturnTo = null;
@@ -634,12 +635,7 @@ var Components = {
           Components._viewComp(pid);
         }, 150);
       };
-      // 插入到"关闭"按钮之前
-      var closeBtn = footer.querySelector('.btn-primary');
-      if (closeBtn) {
-        footer.insertBefore(btn, closeBtn);
-      } else {
-        footer.insertBefore(btn, footer.firstChild);
+      footer.insertBefore(btn, footer.firstChild);
       }
     }, 100);
   },
