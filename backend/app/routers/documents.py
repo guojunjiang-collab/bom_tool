@@ -35,7 +35,7 @@ async def get_document_references(doc_id: uuid.UUID, db: Session = Depends(get_d
     Returns:
         引用该图文档的零部件列表、用户看板文件夹列表
     """
-    from ..models import DashboardItem, DashboardFolder, User
+    from ..models import DashboardItem, DashboardFolder, User, UserDashboard
     
     # 查询引用该图文档的零部件关联记录
     refs = db.query(EntityDocument).filter(EntityDocument.document_id == doc_id).all()
@@ -84,14 +84,16 @@ async def get_document_references(doc_id: uuid.UUID, db: Session = Depends(get_d
                 else:
                     current_folder = None
             
-            # 获取用户信息
-            user = db.query(User).filter(User.id == folder.user_id).first()
+            # 获取用户信息（通过 dashboard 关系）
+            dashboard = db.query(UserDashboard).filter(UserDashboard.id == folder.dashboard_id).first()
+            user_id = dashboard.user_id if dashboard else None
+            user = db.query(User).filter(User.id == user_id).first() if user_id else None
             
             dashboard_folders.append({
                 "folder_id": str(folder.id),
                 "folder_name": folder.name,
                 "folder_path": " / ".join(path_parts),
-                "user_id": str(folder.user_id),
+                "user_id": str(user_id) if user_id else None,
                 "user_name": user.real_name if user else "未知用户",
             })
     
