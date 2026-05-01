@@ -51,6 +51,8 @@ async def get_document_references(doc_id: uuid.UUID, db: Session = Depends(get_d
                     "entity_id": str(part.id),
                     "entity_code": part.code,
                     "entity_name": part.name,
+                    "version": part.version or "",
+                    "status": part.status or "draft",
                     "category": ref.category,
                 })
         elif ref.entity_type == 'component':
@@ -61,6 +63,8 @@ async def get_document_references(doc_id: uuid.UUID, db: Session = Depends(get_d
                     "entity_id": str(assembly.id),
                     "entity_code": assembly.code,
                     "entity_name": assembly.name,
+                    "version": assembly.version or "",
+                    "status": assembly.status or "draft",
                     "category": ref.category,
                 })
     

@@ -540,7 +540,7 @@ var Bom = {
         if (refs.length === 0) {
           html += '<div style="text-align:center;padding:20px;color:var(--text-light)">未被任何零件或部件引用</div>';
         } else {
-          html += '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb"><th style="padding:8px 12px;text-align:left">类型</th><th style="padding:8px 12px;text-align:left">编号</th><th style="padding:8px 12px;text-align:left">名称</th><th style="padding:8px 12px;text-align:center">分类</th></tr></thead><tbody>';
+          html += '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb"><th style="padding:8px 12px;text-align:left">类型</th><th style="padding:8px 12px;text-align:left">编号</th><th style="padding:8px 12px;text-align:left">名称</th><th style="padding:8px 12px;text-align:center">版本</th><th style="padding:8px 12px;text-align:center">状态</th></tr></thead><tbody>';
           refs.forEach(function(ref) {
             var typeTag = ref.entity_type === 'part'
               ? '<span style="font-size:12px;padding:1px 6px;border-radius:3px;background:#f6ffed;color:#52c41a;border:1px solid #b7eb8f">零件</span>'
@@ -548,11 +548,14 @@ var Bom = {
             var clickHandler = ref.entity_type === 'part'
               ? 'onclick="Parts._viewPart(\'' + ref.entity_id + '\')"'
               : 'onclick="Components._viewComp(\'' + ref.entity_id + '\')"';
+            var ver = ref.version || '';
+            var statusHtml = ref.status ? UI.statusTag(ref.status) : '<span style="color:#9ca3af;font-size:12px">-</span>';
             html += '<tr style="cursor:pointer" ' + clickHandler + '>' +
               '<td style="padding:8px 12px;border-bottom:1px solid #f3f4f6">' + typeTag + '</td>' +
               '<td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-weight:500">' + (ref.entity_code || '-') + '</td>' +
               '<td style="padding:8px 12px;border-bottom:1px solid #f3f4f6">' + (ref.entity_name || '-') + '</td>' +
-              '<td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;text-align:center;font-size:12px;color:var(--text-secondary)">' + (ref.category || '-') + '</td></tr>';
+              '<td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;text-align:center;font-size:12px;color:var(--text-secondary)">' + (ver || '-') + '</td>' +
+              '<td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;text-align:center">' + statusHtml + '</td></tr>';
           });
           html += '</tbody></table>';
         }
