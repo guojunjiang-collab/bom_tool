@@ -636,7 +636,6 @@ var Components = {
         }, 150);
       };
       footer.insertBefore(btn, footer.firstChild);
-      }
     }, 100);
   },
 
