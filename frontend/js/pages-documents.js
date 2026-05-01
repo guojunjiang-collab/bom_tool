@@ -255,6 +255,10 @@ var Documents = {
   },
 
   _viewDoc: function(id, docs) {
+    // 如果没有传入 docs 数组，从 Store 获取
+    if (!docs) {
+      docs = Store.getAll('documents') || [];
+    }
     var doc = docs.find(function(d) { return d.id === id; });
     if (!doc) return;
 
