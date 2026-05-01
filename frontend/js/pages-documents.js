@@ -525,18 +525,34 @@ var Documents = {
       return;
     }
     
-    // 使用浏览器原生下载（显示进度）
+    // 下载附件
     var token = localStorage.getItem('bom_api_token') || '';
-    var downloadUrl = '/api/v2/attachments/' + doc.file_id + '/direct-download?token=' + encodeURIComponent(token);
+    UI.toast('正在下载 ' + (doc.file_name || '附件') + '...', 'info');
     
-    // 创建隐藏的 a 标签触发下载
-    var a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = doc.file_name || 'attachment';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    fetch('/api/v2/attachments/' + doc.file_id + '/stream', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    }).then(function(response) {
+      if (!response.ok) {
+        return response.json().then(function(err) {
+          throw new Error(err.detail || '下载失败 (' + response.status + ')');
+        }).catch(function() {
+          throw new Error('下载失败 (' + response.status + ')');
+        });
+      }
+      return response.blob();
+    }).then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = doc.file_name || 'attachment';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      UI.toast('下载完成', 'success');
+    }).catch(function(e) {
+      UI.toast('下载失败: ' + e.message, 'error');
+    });
   },
 
   _deleteDoc: function(id) {
