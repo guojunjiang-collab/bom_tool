@@ -35,7 +35,7 @@ services:
       - REDIS_PORT=6379
       - UPLOAD_DIR=/app/uploads
       - CHUNK_DIR=/app/uploads/chunks
-      - MAX_FILE_SIZE=104857600
+      - MAX_FILE_SIZE=1073741824
       - CHUNK_SIZE=5242880
     volumes:
       - ./uploads:/app/uploads
