@@ -528,7 +528,15 @@ var Documents = {
     // 使用浏览器原生下载（显示进度）
     var token = localStorage.getItem('bom_api_token') || '';
     var downloadUrl = '/api/v2/attachments/' + doc.file_id + '/direct-download?token=' + encodeURIComponent(token);
-    window.open(downloadUrl, '_blank');
+    
+    // 创建隐藏的 a 标签触发下载
+    var a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = doc.file_name || 'attachment';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   },
 
   _deleteDoc: function(id) {
