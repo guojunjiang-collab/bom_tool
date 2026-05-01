@@ -607,10 +607,17 @@ var Documents = {
       return;
     }
 
-    // 统一用 preview.html 在新标签页加载，不阻塞主界面
     var token = localStorage.getItem('bom_api_token') || '';
-    var previewUrl = window.location.origin + '/preview.html?att_id=' + fileId + '&token=' + encodeURIComponent(token) + '&type=' + ext;
-    window.open(previewUrl, '_blank');
+    
+    if (ext === 'pdf') {
+      // PDF 直接用浏览器原生阅读器流式加载
+      var previewUrl = '/api/v2/attachments/' + fileId + '/preview?token=' + encodeURIComponent(token);
+      window.open(previewUrl, '_blank');
+    } else {
+      // STP 使用自定义预览页面
+      var previewUrl = window.location.origin + '/preview.html?att_id=' + fileId + '&token=' + encodeURIComponent(token) + '&type=' + ext;
+      window.open(previewUrl, '_blank');
+    }
   }
 };
 
