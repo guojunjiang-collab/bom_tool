@@ -499,14 +499,19 @@ async def direct_download_attachment(
         raise HTTPException(status_code=404, detail="文件不存在")
 
     import mimetypes
+    from urllib.parse import quote
+    
     mime_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
-
+    
+    # RFC 5987 编码文件名（支持中文）
+    encoded_filename = quote(att.file_name)
+    
     # 返回文件，带 Content-Disposition: attachment 触发下载
     return FileResponse(
         path=str(file_path),
         filename=att.file_name,
         media_type=mime_type,
-        headers={"Content-Disposition": f'attachment; filename="{att.file_name}"'}
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
     )
 
 
@@ -551,14 +556,19 @@ async def preview_attachment(
         raise HTTPException(status_code=404, detail="文件不存在")
 
     import mimetypes
+    from urllib.parse import quote
+    
     mime_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
-
+    
+    # RFC 5987 编码文件名（支持中文）
+    encoded_filename = quote(att.file_name)
+    
     # 返回文件，带 Content-Disposition: inline 让浏览器内嵌显示
     return FileResponse(
         path=str(file_path),
         filename=att.file_name,
         media_type=mime_type,
-        headers={"Content-Disposition": f'inline; filename="{att.file_name}"'}
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{encoded_filename}"}
     )
 
 
